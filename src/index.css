@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    font-family: 'Poppins', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', 'Roc Grotesk', 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-barbershop-gold text-barbershop-dark px-6 py-3 rounded-lg font-semibold transition-colors hover:brightness-110;
+  }
+  
+  .btn-secondary {
+    @apply bg-barbershop-gray text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition-colors;
+  }
+}
+
+@layer utilities {
+  /* App-styled scrollbar: dark track with gold thumb */
+  .scrollbar-gold {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: #c6ff3e #132128; /* thumb track */
+  }
+  .scrollbar-gold::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+  }
+  .scrollbar-gold::-webkit-scrollbar-track {
+    background: #132128; /* barbershop-gray */
+    border-radius: 9999px;
+  }
+  .scrollbar-gold::-webkit-scrollbar-thumb {
+    background-color: #c6ff3e; /* barbershop-gold */
+    border-radius: 9999px;
+    border: 2px solid #0b1215; /* barbershop-dark */
+  }
+  .scrollbar-gold::-webkit-scrollbar-thumb:hover {
+    background-color: #d4ff63; /* lighter neon on hover */
+  }
+}
