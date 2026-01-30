@@ -258,7 +258,6 @@ export default function ReservationCalendar({
               {new Array(stepsPerDay).fill(0).map((_, i) => (
                 <div
                   key={i}
-                  data-slot
                   data-day={dayIdx}
                   data-slot={i}
                   className={`absolute left-1 right-1 rounded-md ${hoverSlot?.dayIdx === dayIdx && hoverSlot?.slotIdx === i ? 'bg-blue-100' : 'bg-[#EEF3F2]'}`}

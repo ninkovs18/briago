@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Combobox } from '@headlessui/react'
 import {
   addDoc,
   collection,
@@ -22,7 +23,13 @@ export type ReservationDoc = {
   durationMin?: number
 }
 
-type UserDoc = { id: string; fullName?: string; email?: string; disabled?: boolean }
+type UserDoc = {
+  id: string
+  fullName?: string
+  email?: string
+  disabled?: boolean
+  verified?: boolean
+}
 
 type ServiceDoc = { id: string; name: string; duration?: number }
 
@@ -55,6 +62,7 @@ const AdminReservationsPage = () => {
   const [highlightId, setHighlightId] = useState<string | null>(null)
   const highlightTimerRef = useRef<number | null>(null)
   const initialLoadRef = useRef(true)
+  const [userQuery, setUserQuery] = useState('')
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'reservations'), (snap) => {
@@ -62,7 +70,7 @@ const AdminReservationsPage = () => {
       snap.forEach((d) => {
         const data = d.data() as ReservationDoc
         if (data.status && data.status !== 'active') return
-        list.push({ id: d.id, ...data })
+        list.push({ ...data, id: d.id })
       })
       setReservations(list)
 
@@ -91,6 +99,7 @@ const AdminReservationsPage = () => {
       snap.forEach((d) => {
         const data = d.data() as Omit<UserDoc, 'id'>
         if (data.disabled) return
+        if (!data.verified) return
         list.push({ id: d.id, ...data })
       })
       setUsers(list)
@@ -101,7 +110,7 @@ const AdminReservationsPage = () => {
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'services'), (snap) => {
       const list: ServiceDoc[] = []
-      snap.forEach((d) => list.push({ id: d.id, ...(d.data() as ServiceDoc) }))
+      snap.forEach((d) => list.push({ ...(d.data() as Omit<ServiceDoc, 'id'>), id: d.id }))
       setServices(list)
     })
     return unsub
@@ -259,6 +268,17 @@ const AdminReservationsPage = () => {
     }))
   }, [users])
 
+  const selectedUser = useMemo(() => {
+    if (!form.userId) return null
+    return userOptions.find((u) => u.id === form.userId) ?? null
+  }, [form.userId, userOptions])
+
+  const filteredUserOptions = useMemo(() => {
+    const q = userQuery.trim().toLowerCase()
+    if (!q) return userOptions
+    return userOptions.filter((u) => u.label.toLowerCase().includes(q))
+  }, [userOptions, userQuery])
+
   const serviceOptions = useMemo(() => {
     return services.map((s) => ({
       id: s.id,
@@ -330,16 +350,42 @@ const AdminReservationsPage = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Korisnik *</label>
-                <select
-                  value={form.userId}
-                  onChange={(e) => setForm({ ...form, userId: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                <Combobox
+                  value={selectedUser}
+                  onChange={(u) => {
+                    setForm({ ...form, userId: u?.id ?? '' })
+                    setUserQuery('')
+                  }}
                 >
-                  <option value="">Izaberi korisnika</option>
-                  {userOptions.map((u) => (
-                    <option key={u.id} value={u.id}>{u.label}</option>
-                  ))}
-                </select>
+                  <div className="relative">
+                    <Combobox.Input
+                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                      displayValue={(u: { id: string; label: string } | null) => u?.label ?? ''}
+                      onChange={(e) => {
+                        setUserQuery(e.target.value)
+                        if (form.userId) setForm({ ...form, userId: '' })
+                      }}
+                      placeholder="Izaberi korisnika"
+                    />
+                    <Combobox.Options className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border border-gray-200 bg-white text-sm shadow-lg">
+                      {filteredUserOptions.length === 0 ? (
+                        <div className="px-3 py-2 text-gray-500">Nema rezultata</div>
+                      ) : (
+                        filteredUserOptions.map((u) => (
+                          <Combobox.Option
+                            key={u.id}
+                            value={u}
+                            className={({ active }) =>
+                              `cursor-pointer px-3 py-2 ${active ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`
+                            }
+                          >
+                            {u.label}
+                          </Combobox.Option>
+                        ))
+                      )}
+                    </Combobox.Options>
+                  </div>
+                </Combobox>
               </div>
 
               <div>
