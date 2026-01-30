@@ -13,6 +13,9 @@ import { doc, getDoc } from 'firebase/firestore'
 interface AuthContextType {
   currentUser: User | null
   isAdmin: boolean
+  isVerified: boolean
+  isDisabled: boolean
+  disabledMessage: string | null
   roleLoading: boolean
   login: (email: string, password: string) => Promise<UserCredential>
   signup: (email: string, password: string) => Promise<UserCredential>
@@ -30,6 +33,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState<boolean>(false)
+  const [isVerified, setIsVerified] = useState<boolean>(false)
+  const [isDisabled, setIsDisabled] = useState<boolean>(false)
+  const [disabledMessage, setDisabledMessage] = useState<string | null>(null)
   const [roleLoading, setRoleLoading] = useState<boolean>(false)
 
   const signup = (email: string, password: string) => {
@@ -37,6 +43,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const login = (email: string, password: string) => {
+    setDisabledMessage(null)
     return signInWithEmailAndPassword(auth, email, password)
   }
 
@@ -53,14 +60,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const ref = doc(db, 'users', user.uid)
           const snap = await getDoc(ref)
           setIsAdmin(!!snap.data()?.isAdmin)
+          setIsVerified(!!snap.data()?.verified)
+          setIsDisabled(!!snap.data()?.disabled)
+          if (snap.data()?.disabled) {
+            setDisabledMessage('Nalog je deaktiviran od strane admina.')
+            await signOut(auth)
+          }
         } catch (e) {
           console.error('Failed to load user role', e)
           setIsAdmin(false)
+          setIsVerified(false)
+          setIsDisabled(false)
+          setDisabledMessage(null)
         } finally {
           setRoleLoading(false)
         }
       } else {
         setIsAdmin(false)
+        setIsVerified(false)
+        setIsDisabled(false)
       }
       setLoading(false)
     })
@@ -71,6 +89,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const value: AuthContextType = {
     currentUser,
     isAdmin,
+    isVerified,
+    isDisabled,
+    disabledMessage,
     roleLoading,
     login,
     signup,

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   addDays,
   addMinutes,
@@ -9,6 +9,7 @@ import {
   setMinutes,
   startOfWeek
 } from 'date-fns'
+import { srLatn } from 'date-fns/locale'
 
 export type CalendarEvent = {
   id: string
@@ -21,17 +22,20 @@ export type CalendarEvent = {
 export type ReservationCalendarProps = {
   weekStart?: Date
   events: CalendarEvent[]
-  minHour?: number // 8 → 08:00
-  maxHour?: number // 20 → 20:00
-  stepMinutes?: number // 30
+  minHour?: number
+  maxHour?: number
+  stepMinutes?: number
   onPrevWeek?: () => void
   onNextWeek?: () => void
   onSlotClick?: (dt: Date) => void
   onEventClick?: (ev: CalendarEvent) => void
+  onEventMove?: (ev: CalendarEvent, nextStart: Date, nextEnd: Date) => void
+  highlightEventId?: string | null
 }
 
-const HOURS_LABEL_WIDTH = 56
-const DAY_MIN_WIDTH = 140 // px, ensures horizontal scroll on small screens
+const HOURS_LABEL_WIDTH = 36
+const DAY_MIN_WIDTH = 56
+const STEP_HEIGHT = 26
 
 export default function ReservationCalendar({
   weekStart,
@@ -42,109 +46,225 @@ export default function ReservationCalendar({
   onPrevWeek,
   onNextWeek,
   onSlotClick,
-  onEventClick
+  onEventClick,
+  onEventMove,
+  highlightEventId
 }: ReservationCalendarProps) {
   const start = useMemo(() => startOfWeek(weekStart ?? new Date(), { weekStartsOn: 1 }), [weekStart])
-  const days = new Array(7).fill(0).map((_, i) => addDays(start, i))
+  const days = useMemo(() => new Array(6).fill(0).map((_, i) => addDays(start, i)), [start])
 
   const minutesPerDay = (maxHour - minHour) * 60
   const stepsPerDay = Math.ceil(minutesPerDay / stepMinutes)
-  const stepHeight = 28 // px per step
-  const columnHeight = stepsPerDay * stepHeight
+  const columnHeight = stepsPerDay * STEP_HEIGHT
 
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
+  const draggingRef = useRef(false)
+  const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null)
 
   const dayEvents = useMemo(() => {
     return days.map((day) => events.filter((e) => isSameDay(e.start, day)))
   }, [days, events])
 
+  const toSlotDate = useCallback((dayIdx: number, slotIdx: number) => {
+    const base = setMinutes(setHours(addDays(start, dayIdx), minHour), 0)
+    return addMinutes(base, slotIdx * stepMinutes)
+  }, [start, minHour, stepMinutes])
+
   const handleColumnClick = (e: React.MouseEvent<HTMLDivElement>, dayIdx: number) => {
+    if (dragStartRef.current || draggingRef.current) return
     if (!onSlotClick) return
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
     const y = e.clientY - rect.top
-    const minutesFromTop = Math.floor(y / stepHeight) * stepMinutes
+    const minutesFromTop = Math.floor(y / STEP_HEIGHT) * stepMinutes
     const dt = setMinutes(setHours(addDays(start, dayIdx), minHour), 0)
-    const clicked = addMinutes(dt, minutesFromTop)
-    onSlotClick(clicked)
+    onSlotClick(addMinutes(dt, minutesFromTop))
   }
+
+  const handlePointerMove = useCallback((e: PointerEvent) => {
+    if (!draggingRef.current) {
+      if (dragStartRef.current) {
+        const dx = Math.abs(e.clientX - dragStartRef.current.x)
+        const dy = Math.abs(e.clientY - dragStartRef.current.y)
+        if (dx > 6 || dy > 6) {
+          draggingRef.current = true
+          setDraggingId(dragStartRef.current.id)
+        }
+      }
+      return
+    }
+    const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+    const slot = el?.closest('[data-slot]') as HTMLElement | null
+    if (!slot) {
+      setHoverSlot(null)
+      return
+    }
+    const dayIdx = Number(slot.dataset.day)
+    const slotIdx = Number(slot.dataset.slot)
+    if (Number.isNaN(dayIdx) || Number.isNaN(slotIdx)) return
+    setHoverSlot({ dayIdx, slotIdx })
+  }, [])
+
+  const handlePointerUp = useCallback((e: PointerEvent) => {
+    const wasDragging = draggingRef.current
+    const candidate = dragStartRef.current
+    draggingRef.current = false
+    dragStartRef.current = null
+
+    if (!wasDragging) {
+      if (candidate) {
+        const ev = events.find((item) => item.id === candidate.id)
+        if (ev) onEventClick?.(ev)
+      }
+      setDraggingId(null)
+      setHoverSlot(null)
+      return
+    }
+
+    const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null
+    const slot = el?.closest('[data-slot]') as HTMLElement | null
+    const draggingEvent = events.find((ev) => ev.id === draggingId)
+    if (slot && draggingEvent && onEventMove) {
+      const dayIdx = Number(slot.dataset.day)
+      const slotIdx = Number(slot.dataset.slot)
+      if (!Number.isNaN(dayIdx) && !Number.isNaN(slotIdx)) {
+        const nextStart = toSlotDate(dayIdx, slotIdx)
+        const duration = Math.max(30, differenceInMinutes(draggingEvent.end, draggingEvent.start))
+        const nextEnd = addMinutes(nextStart, duration)
+        onEventMove(draggingEvent, nextStart, nextEnd)
+      }
+    }
+    setDraggingId(null)
+    setHoverSlot(null)
+  }, [draggingId, events, onEventClick, onEventMove, toSlotDate])
+
+  useEffect(() => {
+    if (!draggingId) return
+    const onMove = (e: PointerEvent) => handlePointerMove(e)
+    const onUp = (e: PointerEvent) => handlePointerUp(e)
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [draggingId, handlePointerMove, handlePointerUp])
 
   const renderEvent = (ev: CalendarEvent, dayIdx: number) => {
     const columnTop = setHours(setMinutes(addDays(start, dayIdx), 0), minHour)
     const startMinutes = differenceInMinutes(ev.start, columnTop)
-    const top = (startMinutes / stepMinutes) * stepHeight
-    const height = Math.max(20, (differenceInMinutes(ev.end, ev.start) / stepMinutes) * stepHeight)
-    const color = ev.color ?? '#1F50FF'
+    const top = (startMinutes / stepMinutes) * STEP_HEIGHT
+    const height = Math.max(18, (differenceInMinutes(ev.end, ev.start) / stepMinutes) * STEP_HEIGHT)
+    const color = ev.color ?? '#3b82f6'
 
+    const isHighlight = highlightEventId && ev.id === highlightEventId
     return (
       <div
         id={`ev-${ev.id}`}
         key={ev.id}
-        className="absolute left-1 right-1 rounded-md text-left overflow-hidden shadow-sm cursor-pointer"
-        style={{ top, height, background: color, color: '#fff' }}
+        className="absolute left-1 right-1 rounded-lg text-left overflow-hidden shadow-sm cursor-grab active:cursor-grabbing"
+        style={{
+          top,
+          height,
+          background: color,
+          color: '#fff',
+          animation: isHighlight ? 'pulseRed 1s ease-in-out 0s 3' : undefined
+        }}
         title={`${ev.title} — ${format(ev.start, 'HH:mm')}–${format(ev.end, 'HH:mm')}`}
-        onClick={(e) => { e.stopPropagation(); onEventClick?.(ev) }}
+        onPointerDown={(e) => {
+          e.stopPropagation()
+          dragStartRef.current = { id: ev.id, x: e.clientX, y: e.clientY }
+        }}
+        onClick={(e) => {
+          e.stopPropagation()
+        }}
+        onPointerUp={(e) => {
+          e.stopPropagation()
+          if (!draggingRef.current && dragStartRef.current?.id === ev.id) {
+            dragStartRef.current = null
+            onEventClick?.(ev)
+          }
+        }}
       >
-        <div className="px-2 py-1 text-xs font-medium select-none">
-          <div>{format(ev.start, 'HH:mm')} – {format(ev.end, 'HH:mm')}</div>
-          <div className="truncate text-[13px] font-semibold">{ev.title}</div>
+        <div className="px-2 py-1 text-[10px] font-semibold select-none">
+          <div className="truncate text-[11px]">{ev.title}</div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="w-full bg-white border border-[#F0F0F0] rounded-lg">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b">
-        <div className="font-bold text-lg">{format(start, 'MMM d')} – {format(addDays(start, 6), 'MMM d, yyyy')}</div>
+    <div className="w-full bg-[#F6F8F7] border border-[#E7ECEA] rounded-lg">
+      <style>{`
+        @keyframes pulseRed {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+          50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.45); }
+        }
+      `}</style>
+      <div className="flex flex-col gap-2 px-2 py-2 border-b border-[#E7ECEA] sm:flex-row sm:items-center sm:justify-between">
+        <div className="font-semibold text-sm sm:text-lg text-[#1F2937]">
+          {format(start, 'd MMM', { locale: srLatn })} – {format(addDays(start, 6), 'd MMM yyyy', { locale: srLatn })}
+        </div>
         <div className="flex gap-2">
-          <button type="button" onClick={onPrevWeek} className="px-3 py-1 rounded border">← Prev</button>
-          <button type="button" onClick={onNextWeek} className="px-3 py-1 rounded border">Next →</button>
+          <button type="button" onClick={onPrevWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">←</button>
+          <button type="button" onClick={onNextWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">→</button>
         </div>
       </div>
 
-      {/* Grid */}
       <div
         ref={containerRef}
         className="relative overflow-x-auto overflow-y-auto"
-        style={{ maxHeight: 600 }}
+        style={{ maxHeight: 700 }}
+        onPointerUp={() => {
+          if (!draggingRef.current) {
+            dragStartRef.current = null
+          }
+        }}
       >
         <div
           className="grid min-w-max"
-          style={{ gridTemplateColumns: `${HOURS_LABEL_WIDTH}px repeat(7, minmax(${DAY_MIN_WIDTH}px, 1fr))` }}
+          style={{ gridTemplateColumns: `${HOURS_LABEL_WIDTH}px repeat(6, minmax(${DAY_MIN_WIDTH}px, 1fr))` }}
         >
-          {/* Day headers */}
           <div />
           {days.map((d) => (
-            <div key={d.toISOString()} className="px-2 py-2 text-center font-semibold border-l first:border-l-0">
-              {format(d, 'EEE d')}
+            <div key={d.toISOString()} className="px-0.5 py-1 text-center border-l first:border-l-0 border-[#E7ECEA]">
+              <div className="uppercase text-[9px] text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
+              <div className="text-base font-semibold text-[#111827]">{format(d, 'd', { locale: srLatn })}</div>
             </div>
           ))}
 
-          {/* Time + columns */}
-          {/* Time labels */}
-          <div className="relative border-t" style={{ height: columnHeight }}>
+          <div className="relative border-t border-[#E7ECEA]" style={{ height: columnHeight }}>
             {new Array(stepsPerDay + 1).fill(0).map((_, i) => {
               const totalMin = i * stepMinutes
               const hh = Math.floor(totalMin / 60) + minHour
               const mm = totalMin % 60
               const label = mm === 0 ? `${String(hh).padStart(2, '0')}:00` : ''
               return (
-                <div key={i} className="absolute left-0 right-0" style={{ top: i * stepHeight - 8 }}>
-                  <div className="text-xs text-gray-500 pl-2">{label}</div>
+                <div key={i} className="absolute left-0 right-0" style={{ top: i * STEP_HEIGHT - 8 }}>
+                  <div className="text-[9px] text-gray-500 pl-0.5">{label}</div>
                 </div>
               )
             })}
           </div>
 
-          {/* Day columns */}
           {days.map((_, dayIdx) => (
-            <div id={`col-${dayIdx}`} key={dayIdx} className="relative border-l border-t" style={{ height: columnHeight }} onClick={(e) => handleColumnClick(e, dayIdx)}>
-              {/* horizontal lines */}
-              {new Array(stepsPerDay + 1).fill(0).map((_, i) => (
-                <div key={i} className="absolute left-0 right-0 border-t border-dashed border-gray-200" style={{ top: i * stepHeight }} />
+            <div
+              key={dayIdx}
+              className="relative border-l border-t border-[#E7ECEA]"
+              style={{ height: columnHeight }}
+              onClick={(e) => handleColumnClick(e, dayIdx)}
+            >
+              {new Array(stepsPerDay).fill(0).map((_, i) => (
+                <div
+                  key={i}
+                  data-slot
+                  data-day={dayIdx}
+                  data-slot={i}
+                  className={`absolute left-1 right-1 rounded-md ${hoverSlot?.dayIdx === dayIdx && hoverSlot?.slotIdx === i ? 'bg-blue-100' : 'bg-[#EEF3F2]'}`}
+                  style={{ top: i * STEP_HEIGHT + 2, height: STEP_HEIGHT - 4 }}
+                />
               ))}
-              {/* events */}
               {dayEvents[dayIdx].map((ev) => renderEvent(ev, dayIdx))}
             </div>
           ))}

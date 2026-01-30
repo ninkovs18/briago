@@ -14,6 +14,7 @@ import {
   startOfMonth,
   startOfWeek
 } from 'date-fns'
+import { srLatn } from 'date-fns/locale'
 
 function fmt(d: Date): string {
   return format(d, 'yyyy-MM-dd')
@@ -30,7 +31,8 @@ export type DatePickerProps = {
   disabled?: boolean
 }
 
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const LOCALE = srLatn
+const WEEKDAY_LABELS = ['Ned', 'Pon', 'Uto', 'Sre', 'Čet', 'Pet', 'Sub']
 
 export const DatePicker: React.FC<DatePickerProps> = ({
   value,
@@ -105,12 +107,12 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       <div className="w-full max-w-md bg-barbershop-gray rounded-lg border border-gray-700">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700">
           <div className="text-white font-semibold">
-            {format(currentMonth, 'MMMM yyyy')}
+            {format(currentMonth, 'MMMM yyyy', { locale: LOCALE })}
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
-              aria-label="Previous month"
+              aria-label="Prethodni mesec"
               disabled={!canGoPrev || disabled}
               onClick={() => setCurrentMonth(prevMonth)}
               className="h-8 w-8 grid place-items-center rounded-md border border-gray-600 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -119,7 +121,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
             </button>
             <button
               type="button"
-              aria-label="Next month"
+              aria-label="Sledeći mesec"
               disabled={!canGoNext || disabled}
               onClick={() => setCurrentMonth(nextMonth)}
               className="h-8 w-8 grid place-items-center rounded-md border border-gray-600 text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"

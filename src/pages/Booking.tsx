@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import DatePicker from '../components/DatePicker'
 import StepCard from '../components/StepCard'
 import TimeSlider from '../components/TimeSlider'
-import { auth, db } from '../firebase'
+import { db } from '../firebase'
+import { useAuth } from '../contexts/AuthContext'
 import {
   collection,
   addDoc,
@@ -34,6 +36,8 @@ interface Reservation {
 }
 
 const Booking = () => {
+  const navigate = useNavigate()
+  const { currentUser, isVerified, isAdmin, roleLoading } = useAuth()
   const [formData, setFormData] = useState<FormData>({
     service: '',
     serviceId: '',
@@ -47,6 +51,7 @@ const Booking = () => {
   const [availableTimes, setAvailableTimes] = useState<string[]>([])
   const [filteredServices, setFilteredServices] = useState<Service[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
+  const [modal, setModal] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const timeSlots = [
     '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
@@ -175,20 +180,23 @@ const Booking = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canSubmit) return
-    const user = auth.currentUser
-    if (!user) {
-      alert('Morate biti prijavljeni da biste rezervisali termin.')
+    if (!currentUser) {
+      setModal({ type: 'error', message: 'Morate biti prijavljeni da biste rezervisali termin.' })
+      return
+    }
+    if (!isVerified && !isAdmin) {
+      setModal({ type: 'error', message: 'Nalog još uvek nije verifikovan. Sačekajte verifikaciju admina.' })
       return
     }
     const service = services.find((s) => s.id === formData.serviceId)
     if (!service) {
-      alert("Greška — usluga ne postoji")
+      setModal({ type: 'error', message: 'Greška — usluga ne postoji.' })
       return
     }
     const endTime = calculateEndTime(formData.time, service.duration)
     try {
       await addDoc(collection(db, 'reservations'), {
-        userId: user.uid,
+        userId: currentUser.uid,
         serviceId: formData.serviceId,
         date: formData.date,
         startTime: formData.time,
@@ -196,12 +204,12 @@ const Booking = () => {
         status: "active",
         createdAt: Timestamp.now(),
       })
-      alert('Uspešno ste rezervisali termin ✅')
       setCurrentStep(0)
       setFormData({ service: '', serviceId: '', date: '', time: '' })
+      setModal({ type: 'success', message: 'Uspešno ste rezervisali termin.' })
     } catch (err) {
       console.error("Greška pri rezervaciji:", err)
-      alert("Došlo je do greške, pokušajte ponovo.")
+      setModal({ type: 'error', message: 'Došlo je do greške, pokušajte ponovo.' })
     }
   }
 
@@ -209,6 +217,16 @@ const Booking = () => {
     if (idx < currentStep) return 'complete'
     if (idx === currentStep) return 'current'
     return 'upcoming'
+  }
+
+  const isBlocked = !isVerified && !isAdmin
+
+  if (roleLoading) {
+    return (
+      <div className="min-h-screen flex justify-center items-center text-white text-2xl">
+        Učitavanje...
+      </div>
+    )
   }
 
   return (
@@ -221,6 +239,17 @@ const Booking = () => {
           <p className="text-xl text-gray-300">
             Zakaži svoj termin i prepusti mi brigu o tvom izgledu
           </p>
+          {isBlocked && (
+            <div className="mt-6 inline-flex max-w-2xl items-start gap-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-left text-yellow-200">
+              <span className="mt-0.5 text-lg">⚠️</span>
+              <div>
+                <div className="font-semibold">Profil nije verifikovan</div>
+                <div className="text-sm text-yellow-200/90">
+                  Sačekaj da admin potvrdi nalog kako bi mogao da zakažeš termin.
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -240,6 +269,7 @@ const Booking = () => {
                   onChange={(value) => setFormData({ ...formData, date: value })}
                   daysAhead={14}
                   includeToday={true}
+                  disabled={isBlocked}
                 />
               </div>
               <div>
@@ -251,13 +281,14 @@ const Booking = () => {
                   onChange={(val) => setFormData({ ...formData, time: val })}
                   slots={availableTimes}
                   emptyMessage={!formData.date ? 'Izaberi datum da vidiš slobodne termine.' : 'Nema termina za ovaj dan.'}
+                  disabled={isBlocked}
                 />
               </div>
               <div className="md:col-span-2 flex justify-end">
                 <button
                   type="button"
                   onClick={() => canContinueFromStep0 && setCurrentStep(1)}
-                  disabled={!canContinueFromStep0}
+                  disabled={!canContinueFromStep0 || isBlocked}
                   className="btn-primary disabled:opacity-50"
                 >
                   Dalje
@@ -292,6 +323,7 @@ const Booking = () => {
                     }}
                     className="w-full px-3 py-2 bg-barbershop-dark border rounded-md text-white"
                     required
+                    disabled={isBlocked}
                   >
                     <option value="">Izaberi uslugu</option>
                     {filteredServices.map((s) => (
@@ -310,7 +342,7 @@ const Booking = () => {
                 <button
                   type="button"
                   onClick={() => canContinueFromStep1 && setCurrentStep(2)}
-                  disabled={!canContinueFromStep1}
+                  disabled={!canContinueFromStep1 || isBlocked}
                   className="btn-primary disabled:opacity-50"
                 >
                   Dalje
@@ -341,7 +373,7 @@ const Booking = () => {
                 <button type="button" className="btn-secondary" onClick={() => setCurrentStep(1)}>
                   Nazad
                 </button>
-                <button type="submit" disabled={!canSubmit} className="btn-primary disabled:opacity-50">
+                <button type="submit" disabled={!canSubmit || isBlocked} className="btn-primary disabled:opacity-50">
                   Potvrdi rezervaciju!
                 </button>
               </div>
@@ -349,6 +381,35 @@ const Booking = () => {
           </StepCard>
         </form>
       </div>
+      {modal && (
+        <div className="fixed inset-0 z-20 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-lg bg-barbershop-gray p-6 text-white shadow-xl">
+            <h3 className={`text-xl font-semibold ${modal.type === 'success' ? 'text-green-300' : 'text-yellow-300'}`}>
+              {modal.type === 'success' ? 'Rezervacija uspešna' : 'Greška'}
+            </h3>
+            <p className="mt-2 text-gray-200">{modal.message}</p>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                className="btn-secondary"
+                onClick={() => setModal(null)}
+              >
+                Zatvori
+              </button>
+              {modal.type === 'success' && (
+                <button
+                  className="btn-primary"
+                  onClick={() => {
+                    setModal(null)
+                    navigate('/profile')
+                  }}
+                >
+                  OK
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

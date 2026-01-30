@@ -19,7 +19,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
   name,
   className,
   disabled = false,
-  emptyMessage = 'Pick a date to see available times.'
+  emptyMessage = 'Izaberi datum da vidiš slobodne termine.'
 }) => {
   const list = slots
   const currentIndex = useMemo(() => (value ? list.indexOf(value) : -1), [value, list])
@@ -53,7 +53,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
           <div className="absolute inset-y-0 left-0 flex items-center">
             <button
               type="button"
-              aria-label="Scroll left"
+              aria-label="Pomeri ulevo"
               onClick={() => scrollByBoxes(-1)}
               className="h-8 w-8 grid place-items-center rounded-md border border-gray-600 text-white bg-barbershop-dark hover:bg-gray-800"
             >
@@ -63,7 +63,7 @@ export const TimeSlider: React.FC<TimeSliderProps> = ({
           <div className="absolute inset-y-0 right-0 flex items-center">
             <button
               type="button"
-              aria-label="Scroll right"
+              aria-label="Pomeri udesno"
               onClick={() => scrollByBoxes(1)}
               className="h-8 w-8 grid place-items-center rounded-md border border-gray-600 text-white bg-barbershop-dark hover:bg-gray-800"
             >

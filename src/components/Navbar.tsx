@@ -12,7 +12,7 @@ const Navbar = () => {
       await logout()
       navigate('/')
     } catch (error) {
-      console.error('Failed to logout', error)
+      console.error('Neuspešna odjava', error)
     }
   }
 
@@ -34,19 +34,19 @@ const Navbar = () => {
               to="/" 
               className="text-white hover:text-barbershop-gold transition-colors"
             >
-              Home
+              Početna
             </Link>
             <Link 
               to="/services" 
               className="text-white hover:text-barbershop-gold transition-colors"
             >
-              Services
+              Usluge
             </Link>
             <Link 
               to="/booking" 
               className="text-white hover:text-barbershop-gold transition-colors"
             >
-              Book Appointment
+              Zakaži termin
             </Link>
             
             {currentUser ? (
@@ -55,13 +55,13 @@ const Navbar = () => {
                   to="/profile" 
                   className="text-white hover:text-barbershop-gold transition-colors"
                 >
-                  Profile
+                  Profil
                 </Link>
                 <button 
                   onClick={handleLogout}
                   className="btn-secondary"
                 >
-                  Logout
+                  Odjavi se
                 </button>
               </div>
             ) : (
@@ -69,7 +69,7 @@ const Navbar = () => {
                 to="/login" 
                 className="btn-primary"
               >
-                Login
+                Prijavi se
               </Link>
             )}
           </div>
@@ -93,26 +93,26 @@ const Navbar = () => {
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-barbershop-gray">
             <Link to="/" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
-              Home
+              Početna
             </Link>
             <Link to="/services" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
-              Services
+              Usluge
             </Link>
             <Link to="/booking" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
-              Book Appointment
+              Zakaži termin
             </Link>
             {currentUser ? (
               <>
                 <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
-                  Profile
+                  Profil
                 </Link>
                 <button onClick={async () => { setIsMenuOpen(false); await handleLogout(); }} className="block w-full text-left px-3 py-2 text-white hover:text-barbershop-gold">
-                  Logout
+                  Odjavi se
                 </button>
               </>
             ) : (
               <Link to="/login" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
-                Login
+                Prijavi se
               </Link>
             )}
           </div>

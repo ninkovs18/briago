@@ -8,7 +8,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const { login } = useAuth()
+  const { login, disabledMessage } = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -20,7 +20,7 @@ const Login = () => {
       await login(email, password)
       navigate('/profile')
     } catch (error: any) {
-      setError('Failed to login')
+      setError('Neuspešna prijava')
     }
 
     setLoading(false)
@@ -31,17 +31,22 @@ const Login = () => {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-bold text-white">
-            Sign in to your account
+            Prijavi se na svoj nalog
           </h2>
           <p className="mt-2 text-center text-sm text-gray-300">
-            Don't have an account?{' '}
+            Nemaš nalog?{' '}
             <Link to="/register" className="text-barbershop-gold hover:text-yellow-400">
-              Sign up
+              Registruj se
             </Link>
           </p>
         </div>
 
         <div className="bg-barbershop-gray rounded-lg p-8">
+          {disabledMessage && (
+            <div className="mb-4 p-3 bg-yellow-600 text-white rounded">
+              {disabledMessage}
+            </div>
+          )}
           {error && (
             <div className="mb-4 p-3 bg-red-600 text-white rounded">
               {error}
@@ -51,7 +56,7 @@ const Login = () => {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-white mb-2">
-                Email address
+                Email adresa
               </label>
               <input
                 id="email"
@@ -61,13 +66,13 @@ const Login = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
-                placeholder="Enter your email"
+                placeholder="Unesi svoj email"
               />
             </div>
 
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-white mb-2">
-                Password
+                Lozinka
               </label>
               <input
                 id="password"
@@ -77,7 +82,7 @@ const Login = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
-                placeholder="Enter your password"
+                placeholder="Unesi svoju lozinku"
               />
             </div>
 
@@ -87,7 +92,7 @@ const Login = () => {
                 disabled={loading}
                 className="w-full btn-primary py-3 disabled:opacity-50"
               >
-                {loading ? 'Processing...' : 'Sign In'}
+                {loading ? 'Učitavanje...' : 'Prijavi se'}
               </button>
             </div>
           </form>

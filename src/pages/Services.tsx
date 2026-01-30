@@ -47,7 +47,7 @@ const Services = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex justify-center items-center text-white text-2xl">
-        Loading...
+        Učitavanje...
       </div>
     )
   }
@@ -57,10 +57,10 @@ const Services = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h1 className="text-4xl md:text-6xl font-bold text-white mb-4">
-            Our <span className="text-barbershop-gold">Services</span>
+            Naše <span className="text-barbershop-gold">usluge</span>
           </h1>
           <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            Professional grooming services tailored to your style and preferences
+            Profesionalne usluge negovanja prilagođene tvom stilu i željama
           </p>
         </div>
 
@@ -75,7 +75,7 @@ const Services = () => {
                   {service.name}
                 </h3>
                 <span className="text-2xl font-bold text-barbershop-gold">
-                  {service.price}RSD
+                  {service.price} RSD
                 </span>
               </div>
 
@@ -83,17 +83,51 @@ const Services = () => {
 
               <div className="flex justify-between items-center">
                 <span className="text-sm text-gray-400">
-                  Duration: {service.duration}
+                  Trajanje: {service.duration} min
                 </span>
                 <Link to="/booking" className="btn-primary">
-                  Book Now
+                  Zakaži termin
                 </Link>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="mt-16 bg-barbershop-gray rounded-lg p-8"> <h2 className="text-3xl font-bold text-white mb-6 text-center"> Opening Hours </h2> <div className="grid grid-cols-1 md:grid-cols-2 gap-8"> <div> <h3 className="text-xl font-semibold text-barbershop-gold mb-4">Weekdays</h3> <div className="space-y-2 text-gray-300"> <div className="flex justify-between"> <span>Monday - Friday</span> <span>9:00 AM - 7:00 PM</span> </div> </div> </div> <div> <h3 className="text-xl font-semibold text-barbershop-gold mb-4">Weekend</h3> <div className="space-y-2 text-gray-300"> <div className="flex justify-between"> <span>Saturday</span> <span>9:00 AM - 6:00 PM</span> </div> <div className="flex justify-between"> <span>Sunday</span> <span>10:00 AM - 4:00 PM</span> </div> </div> </div> </div> </div> </div> </div>
+        <div className="mt-16 bg-barbershop-gray rounded-lg p-8">
+          <h2 className="text-3xl font-bold text-white mb-6 text-center">
+            Radno vreme
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-xl font-semibold text-barbershop-gold mb-4">
+                Radni dani
+              </h3>
+              <div className="space-y-2 text-gray-300">
+                <div className="flex justify-between">
+                  <span>Ponedeljak – Petak</span>
+                  <span>09:00 – 19:00</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-barbershop-gold mb-4">
+                Vikend
+              </h3>
+              <div className="space-y-2 text-gray-300">
+                <div className="flex justify-between">
+                  <span>Subota</span>
+                  <span>09:00 – 18:00</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Nedelja</span>
+                  <span>10:00 – 16:00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
   )
 }

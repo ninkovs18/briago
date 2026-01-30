@@ -25,6 +25,7 @@ const AdminServicesPage = () => {
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null) 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'list' | 'form'>('list')
 
   // 1. Povezivanje sa Firestore-om
   useEffect(() => {
@@ -127,33 +128,53 @@ const AdminServicesPage = () => {
 
   // --- RENDERING KOMPONENTE ---
   return (
-    <div className="p-4 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+    <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
       
-      <h1 className="text-2xl font-bold mb-6 text-gray-800">Usluge</h1>
+      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-800">Usluge</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Tabs (mobile only) */}
+      <div className="mb-3 flex gap-2 sm:hidden">
+        <button
+          onClick={() => setActiveTab('list')}
+          className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold ${
+            activeTab === 'list' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-200'
+          }`}
+        >
+          Lista
+        </button>
+        <button
+          onClick={() => setActiveTab('form')}
+          className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold ${
+            activeTab === 'form' ? 'bg-[#1F50FF] text-white' : 'bg-white text-gray-600 border border-gray-200'
+          }`}
+        >
+          Forma
+        </button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         
         {/* TABELA KONTEJNER (lg:col-span-2) */}
-        <div className="lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden">
+        <div className={`lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden ${activeTab !== 'list' ? 'hidden sm:block' : ''}`}>
           
-          <div className="p-4">
+          <div className="p-3 sm:p-4">
               
               {/* ZAGLAVLJE TABELE SA AKCIJAMA */}
-              <div className="flex items-center gap-4 mb-4"> 
-                  <h2 className="font-semibold text-lg whitespace-nowrap">Postojeće usluge</h2> 
+              <div className="flex flex-col gap-3 mb-3 sm:mb-4 sm:flex-row sm:items-center sm:gap-4"> 
+                  <h2 className="font-semibold text-base sm:text-lg whitespace-nowrap">Postojeće usluge</h2> 
                   
-                  <div className="space-x-2 flex">
+                  <div className="flex flex-wrap gap-2">
                       <button
                           onClick={startEditing}
                           disabled={!selectedServiceId || editingId !== null || loading}
-                          className="text-sm px-3 py-1 rounded font-semibold bg-[#1F50FF] text-white disabled:opacity-50 transition duration-150"
+                          className="text-[11px] sm:text-sm px-3 py-1 rounded font-semibold bg-[#1F50FF] text-white disabled:opacity-50 transition duration-150 w-full sm:w-auto"
                       >
                           Izmeni
                       </button>
                       <button
                           onClick={deleteSelected}
                           disabled={!selectedServiceId || loading}
-                          className="text-sm px-3 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150"
+                          className="text-[11px] sm:text-sm px-3 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150 w-full sm:w-auto"
                       >
                           Obriši
                       </button>
@@ -161,55 +182,48 @@ const AdminServicesPage = () => {
               </div>
 
               {/* Tabela */}
-              <div className="overflow-x-auto"> 
-                  <table className="min-w-full text-sm">
-                      {/* ZAGLAVLJE TABELE (<thead>) ostaje fiksno */}
-                      <thead>
-                          <tr className="text-left border-b border-gray-200 bg-gray-50 text-gray-600">
-                              <th className="py-3 px-1">Naziv</th>
-                              <th className="py-3 px-1">Cena</th>
-                              <th className="py-3 px-1">Trajanje</th>
+              <div className="overflow-x-auto">
+                <div className="max-h-[240px] sm:max-h-[260px] overflow-y-auto">
+                  <table className="min-w-[360px] w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                    <thead className="bg-gray-50 text-gray-600 uppercase tracking-wide text-xs">
+                      <tr className="text-left border-b border-gray-200 divide-x divide-gray-200">
+                        <th className="py-3 px-2 sm:px-3">Naziv</th>
+                        <th className="py-3 px-2 sm:px-3">Cena</th>
+                        <th className="py-3 px-2 sm:px-3">Trajanje</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {items.map((s) => {
+                        const isSelected = s.id === selectedServiceId;
+                        return (
+                          <tr
+                            key={s.id}
+                            className={`cursor-pointer divide-x divide-gray-200 ${isSelected ? 'bg-blue-50/70' : 'hover:bg-gray-50'}`}
+                            onClick={() => setSelectedServiceId(s.id === selectedServiceId ? null : s.id!)}
+                          >
+                            <td className="py-3 px-2 sm:px-3 font-medium text-gray-900">{s.name}</td>
+                            <td className="py-3 px-2 sm:px-3 text-gray-600">{s.price} RSD</td>
+                            <td className="py-3 px-2 sm:px-3 text-gray-600">{s.duration} min</td>
                           </tr>
-                      </thead>
-                  </table>
-                  
-                  {/* NOVO: WRAPPER ZA TELO TABELE - max-h-40 (160px) samo na malim ekranima */}
-                  {/* md:max-h-full i md:overflow-y-visible resetuju ograničenja na srednjim i većim ekranima */}
-                  <div className="max-h-40 overflow-y-auto md:max-h-full md:overflow-y-visible">
-                    <table className="min-w-full text-sm">
-                        <tbody>
-                            {items.map((s) => {
-                                const isSelected = s.id === selectedServiceId;
-                                return (
-                                    <tr 
-                                        key={s.id} 
-                                        className={`border-b border-gray-100 cursor-pointer ${isSelected ? 'bg-blue-50/70 border-blue-200' : 'hover:bg-gray-50'}`}
-                                        onClick={() => setSelectedServiceId(s.id === selectedServiceId ? null : s.id!)}
-                                    >
-                                        <td className="py-2 px-1 font-medium">{s.name}</td>
-                                        <td className="py-2 px-1 text-gray-600">{s.price} RSD</td>
-                                        <td className="py-2 px-1 text-gray-600">{s.duration} min</td>
-                                    </tr>
-                                )
-                            })}
+                        )
+                      })}
 
-                            {items.length === 0 && (
-                                <tr>
-                                    <td colSpan={3} className="py-8 text-center text-gray-500">
-                                        Nema usluga za sad.
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                  </div>
-                  
+                      {items.length === 0 && (
+                        <tr>
+                          <td colSpan={3} className="py-8 text-center text-gray-500">
+                            Nema usluga za sad.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
           </div>
         </div>
 
         {/* FORMA (Isto kao pre) */}
-        <div className="bg-white shadow-lg border border-gray-100 rounded-lg p-4">
+        <div className={`bg-white shadow-lg border border-gray-100 rounded-lg p-3 sm:p-4 ${activeTab !== 'form' ? 'hidden sm:block' : ''}`}>
           <h2 className="font-semibold mb-4 text-xl">
             {editingId ? 'Promeni uslugu' : 'Dodaj uslugu'}
           </h2>
