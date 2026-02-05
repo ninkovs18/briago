@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useNavigate, Link } from 'react-router-dom'
-import { doc, setDoc } from 'firebase/firestore'
+import { collection, doc, getDocs, query, setDoc, where } from 'firebase/firestore'
 import { db } from '../firebase'
+import { isValidSerbianPhone, normalizePhone } from '../utils/phone'
 
 
 const Registration = () => {
@@ -27,6 +28,27 @@ const Registration = () => {
 
     try {
       setError('')
+
+      const normalizedFullName = fullName.trim()
+      if (!normalizedFullName) {
+        setError('Ime i prezime ili nadimak je obavezno')
+        return
+      }
+
+      const normalizedPhone = normalizePhone(phone)
+      if (!isValidSerbianPhone(normalizedPhone)) {
+        setError('Unesi važeći broj telefona (npr. +381641234567 ili 0641234567).')
+        return
+      }
+
+      const existingSnap = await getDocs(
+        query(collection(db, 'users'), where('fullName', '==', normalizedFullName))
+      )
+      if (!existingSnap.empty) {
+        setError('Ime i prezime ili nadimak već postoji. Unesi drugi.')
+        return
+      }
+
       setLoading(true)
 
       const cred = await signup(email, password)
@@ -34,8 +56,8 @@ const Registration = () => {
       const uid = cred.user.uid
 
     await setDoc(doc(db, 'users', uid), {
-      fullName,
-      phone,
+      fullName: normalizedFullName,
+      phone: normalizedPhone,
       email,
       isAdmin: false,
       verified: false,
@@ -46,7 +68,16 @@ const Registration = () => {
       navigate('/profile')
     } catch (error: any) {
       console.error(error)
-      setError('Neuspešno kreiranje naloga')
+      const code = error?.code as string | undefined
+      if (code === 'auth/email-already-in-use') {
+        setError('Email je već registrovan. Pokušaj da se prijaviš.')
+      } else if (code === 'auth/invalid-email') {
+        setError('Email nije ispravan.')
+      } else if (code === 'auth/weak-password') {
+        setError('Lozinka je preslaba. Unesi jaču lozinku.')
+      } else {
+        setError('Neuspešno kreiranje naloga')
+      }
     }
 
     setLoading(false)
@@ -77,14 +108,14 @@ const Registration = () => {
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div>
               <label className="block text-sm font-medium text-white mb-2">
-                Ime i prezime
+                Ime i prezime ili nadimak
               </label>
               <input
                 required
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-3 py-2 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
-                placeholder="Petar Petrović"
+                placeholder="Petar Petrović / Peki"
               />
             </div>
 

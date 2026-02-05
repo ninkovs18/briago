@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { getApps, initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -20,3 +20,11 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 export default app;
+
+const getSecondaryApp = () => {
+  const name = 'secondary';
+  const existing = getApps().find((a) => a.name === name);
+  return existing ?? initializeApp(firebaseConfig, name);
+};
+
+export const getSecondaryAuth = () => getAuth(getSecondaryApp());

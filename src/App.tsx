@@ -11,6 +11,7 @@ import AdminLayout from './admin/AdminLayout'
 import ReservationsPage from './admin/pages/Reservations'
 import AdminUsersPage from './admin/pages/Users'
 import AdminServicesPage from './admin/pages/Services'
+import AdminSettingsPage from './admin/pages/Settings'
 import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
 
@@ -37,6 +38,7 @@ function AppLayout() {
             <Route path="reservations" element={<ReservationsPage />} />
             <Route path="services" element={<AdminServicesPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="settings" element={<AdminSettingsPage />} />
           </Route>
         </Route>
       </Routes>

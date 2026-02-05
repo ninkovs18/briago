@@ -7,10 +7,25 @@ import { db } from '../firebase'
 import { useAuth } from '../contexts/AuthContext'
 import {
   collection,
-  addDoc,
+  doc,
   getDocs,
+  onSnapshot,
+  query,
+  runTransaction,
   Timestamp,
+  where
 } from 'firebase/firestore'
+import {
+  buildTimeSlots,
+  defaultWorkingHours,
+  getDayConfig,
+  isDateInVacation,
+  isWithinWorkingHours,
+  normalizeWorkingHours,
+  timeToMinutes,
+  WorkingHours
+} from '../utils/workingHours'
+import { formatDateDotted } from '../utils/date'
 
 // TYPE DEFINITIONS
 interface Service {
@@ -31,7 +46,6 @@ interface FormData {
 interface Reservation {
   startTime: string
   endTime: string
-  status: string
   date: string
 }
 
@@ -52,13 +66,19 @@ const Booking = () => {
   const [filteredServices, setFilteredServices] = useState<Service[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [modal, setModal] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours)
+  const [hoursLoading, setHoursLoading] = useState(true)
 
-  const timeSlots = [
-    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-    '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-    '15:00', '15:30', '16:00', '16:30', '17:00', '17:30',
-    '18:00', '18:30'
-  ]
+  const selectedDayConfig = useMemo(() => {
+    if (!formData.date) return null
+    const date = new Date(formData.date + 'T00:00:00')
+    return getDayConfig(date, workingHours)
+  }, [formData.date, workingHours])
+
+  const timeSlots = useMemo(() => {
+    if (!selectedDayConfig || !selectedDayConfig.isOpen) return []
+    return buildTimeSlots(selectedDayConfig.open, selectedDayConfig.close, 30)
+  }, [selectedDayConfig])
 
   const toMinutes = (label: string) => {
     const [hStr, mStr] = label.split(':')
@@ -77,7 +97,21 @@ const Booking = () => {
     return `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`
   }
 
+  const buildSlotId = (date: string, time: string) => `${date}_${time}`
+
   // FETCH SERVICES
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'workingHours'), (snap) => {
+      if (snap.exists()) {
+        setWorkingHours(normalizeWorkingHours(snap.data() as WorkingHours))
+      } else {
+        setWorkingHours(defaultWorkingHours)
+      }
+      setHoursLoading(false)
+    })
+    return unsub
+  }, [])
+
   useEffect(() => {
     const fetchServices = async () => {
       try {
@@ -97,11 +131,16 @@ const Booking = () => {
     fetchServices()
   }, [])
 
-  // FETCH RESERVATIONS
+  // FETCH RESERVATIONS (only for selected date)
   useEffect(() => {
     const fetchReservations = async () => {
+      if (!formData.date) {
+        setReservations([])
+        return
+      }
       try {
-        const snapshot = await getDocs(collection(db, 'reservations'))
+        const q = query(collection(db, 'reservations'), where('date', '==', formData.date))
+        const snapshot = await getDocs(q)
         const data: Reservation[] = snapshot.docs.map(doc => doc.data() as Reservation)
         setReservations(data)
       } catch (err) {
@@ -109,7 +148,7 @@ const Booking = () => {
       }
     }
     fetchReservations()
-  }, [])
+  }, [formData.date])
 
   // UPDATE AVAILABLE TIMES
   useEffect(() => {
@@ -119,14 +158,18 @@ const Booking = () => {
     }
 
     const date = new Date(formData.date + 'T00:00:00')
-    const day = date.getDay()
-    if (day === 0) { // no Sundays
+    if (isDateInVacation(date, workingHours)) {
+      setAvailableTimes([])
+      return
+    }
+
+    if (!selectedDayConfig || !selectedDayConfig.isOpen) {
       setAvailableTimes([])
       return
     }
 
     const reservationsOnDate = reservations
-      .filter(r => r.date === formData.date && r.status === 'active')
+      .filter(r => r.date === formData.date)
       .map(r => ({
         start: toMinutes(r.startTime),
         end: toMinutes(r.endTime)
@@ -147,7 +190,7 @@ const Booking = () => {
     }
 
     setAvailableTimes(freeSlots)
-  }, [formData.date, reservations])
+  }, [formData.date, reservations, selectedDayConfig, timeSlots])
 
   // FILTER SERVICES BASED ON SELECTED TIME
   useEffect(() => {
@@ -158,7 +201,7 @@ const Booking = () => {
 
     const slotStart = toMinutes(formData.time)
     const reservationsOnDate = reservations
-      .filter(r => r.date === formData.date && r.status === 'active')
+      .filter(r => r.date === formData.date)
       .map(r => ({
         start: toMinutes(r.startTime),
         end: toMinutes(r.endTime)
@@ -168,14 +211,24 @@ const Booking = () => {
       const serviceEnd = slotStart + s.duration
       // preklapanje sa postojećim rezervacijama
       const conflict = reservationsOnDate.some(r => slotStart < r.end && serviceEnd > r.start)
-      return !conflict
+      if (conflict) return false
+      if (selectedDayConfig) {
+        const closeMinutes = timeToMinutes(selectedDayConfig.close)
+        return serviceEnd <= closeMinutes
+      }
+      return true
     })
     setFilteredServices(filtered)
-  }, [formData.time, formData.date, services, reservations])
+  }, [formData.time, formData.date, services, reservations, selectedDayConfig])
 
   const canContinueFromStep0 = !!(formData.date && formData.time)
   const canContinueFromStep1 = !!formData.serviceId
   const canSubmit = useMemo(() => !!(formData.date && formData.time && formData.serviceId), [formData])
+  const isSelectedDateOnVacation = useMemo(() => {
+    if (!formData.date) return false
+    const date = new Date(formData.date + 'T00:00:00')
+    return isDateInVacation(date, workingHours)
+  }, [formData.date, workingHours])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -193,23 +246,54 @@ const Booking = () => {
       setModal({ type: 'error', message: 'Greška — usluga ne postoji.' })
       return
     }
+    const chosenDate = new Date(formData.date + 'T00:00:00')
+    if (isDateInVacation(chosenDate, workingHours)) {
+      setModal({ type: 'error', message: 'Salon je na odmoru u izabranom periodu.' })
+      return
+    }
+    if (!selectedDayConfig || !isWithinWorkingHours(selectedDayConfig, formData.time, service.duration)) {
+      setModal({ type: 'error', message: 'Izabrano vreme je van radnog vremena.' })
+      return
+    }
     const endTime = calculateEndTime(formData.time, service.duration)
+    const expireAtDate = new Date(`${formData.date}T00:00:00`)
+    expireAtDate.setDate(expireAtDate.getDate() + 90)
     try {
-      await addDoc(collection(db, 'reservations'), {
-        userId: currentUser.uid,
-        serviceId: formData.serviceId,
-        date: formData.date,
-        startTime: formData.time,
-        endTime,
-        status: "active",
-        createdAt: Timestamp.now(),
+      await runTransaction(db, async (tx) => {
+        const slotId = buildSlotId(formData.date, formData.time)
+        const slotRef = doc(db, 'slots', slotId)
+        const slotSnap = await tx.get(slotRef)
+        if (slotSnap.exists()) {
+          throw new Error('SLOT_TAKEN')
+        }
+
+        const reservationRef = doc(collection(db, 'reservations'))
+        tx.set(slotRef, {
+          date: formData.date,
+          startTime: formData.time,
+          reservationId: reservationRef.id,
+          createdAt: Timestamp.now(),
+        })
+        tx.set(reservationRef, {
+          userId: currentUser.uid,
+          serviceId: formData.serviceId,
+          date: formData.date,
+          startTime: formData.time,
+          endTime,
+          createdAt: Timestamp.now(),
+          expireAt: Timestamp.fromDate(expireAtDate)
+        })
       })
       setCurrentStep(0)
       setFormData({ service: '', serviceId: '', date: '', time: '' })
       setModal({ type: 'success', message: 'Uspešno ste rezervisali termin.' })
     } catch (err) {
       console.error("Greška pri rezervaciji:", err)
-      setModal({ type: 'error', message: 'Došlo je do greške, pokušajte ponovo.' })
+      if (err instanceof Error && err.message === 'SLOT_TAKEN') {
+        setModal({ type: 'error', message: 'Termin je upravo rezervisan. Izaberi drugi termin.' })
+      } else {
+        setModal({ type: 'error', message: 'Došlo je do greške, pokušajte ponovo.' })
+      }
     }
   }
 
@@ -239,6 +323,17 @@ const Booking = () => {
           <p className="text-xl text-gray-300">
             Zakaži svoj termin i prepusti mi brigu o tvom izgledu
           </p>
+          {isSelectedDateOnVacation && (
+            <div className="mt-6 inline-flex max-w-2xl items-start gap-3 rounded-lg border border-orange-400/50 bg-orange-500/10 px-4 py-3 text-left text-orange-200">
+              <span className="mt-0.5 text-lg">⛱️</span>
+              <div>
+                <div className="font-semibold">Salon je na odmoru</div>
+                <div className="text-sm text-orange-200/90">
+                  {formatDateDotted(workingHours.vacation?.from)} – {formatDateDotted(workingHours.vacation?.to)}
+                </div>
+              </div>
+            </div>
+          )}
           {isBlocked && (
             <div className="mt-6 inline-flex max-w-2xl items-start gap-3 rounded-lg border border-yellow-500/40 bg-yellow-500/10 px-4 py-3 text-left text-yellow-200">
               <span className="mt-0.5 text-lg">⚠️</span>
@@ -264,14 +359,14 @@ const Booking = () => {
                 <label className="block text-sm font-medium text-white mb-2">
                   Datum *
                 </label>
-                <DatePicker
-                  value={formData.date}
-                  onChange={(value) => setFormData({ ...formData, date: value })}
-                  daysAhead={14}
-                  includeToday={true}
-                  disabled={isBlocked}
-                />
-              </div>
+                  <DatePicker
+                    value={formData.date}
+                    onChange={(value) => setFormData({ ...formData, date: value })}
+                    daysAhead={14}
+                    includeToday={true}
+                    disabled={isBlocked}
+                  />
+                </div>
               <div>
                 <label className="block text-sm font-medium text-white mb-2">
                   Vreme *
@@ -280,8 +375,16 @@ const Booking = () => {
                   value={formData.time}
                   onChange={(val) => setFormData({ ...formData, time: val })}
                   slots={availableTimes}
-                  emptyMessage={!formData.date ? 'Izaberi datum da vidiš slobodne termine.' : 'Nema termina za ovaj dan.'}
-                  disabled={isBlocked}
+                  emptyMessage={
+                    !formData.date
+                      ? 'Izaberi datum da vidiš slobodne termine.'
+                      : isDateInVacation(new Date(formData.date + 'T00:00:00'), workingHours)
+                        ? 'Salon je na odmoru u izabranom periodu.'
+                      : hoursLoading
+                        ? 'Učitavanje radnog vremena...'
+                        : 'Nema termina za ovaj dan.'
+                  }
+                  disabled={isBlocked || hoursLoading}
                 />
               </div>
               <div className="md:col-span-2 flex justify-end">
@@ -362,7 +465,7 @@ const Booking = () => {
                 <div className="rounded-md border border-gray-700 p-4 bg-barbershop-dark">
                   <h3 className="text-white font-semibold mb-2">Detalji termina:</h3>
                   <ul className="text-gray-300 text-sm space-y-1">
-                    <li><span className="text-white">Datum:</span> {formData.date || '—'}</li>
+                    <li><span className="text-white">Datum:</span> {formatDateDotted(formData.date)}</li>
                     <li><span className="text-white">Vreme:</span> {formData.time || '—'}</li>
                     <li><span className="text-white">Usluga:</span> {formData.service || '—'}</li>
                   </ul>
@@ -391,9 +494,16 @@ const Booking = () => {
             <div className="mt-6 flex justify-end gap-2">
               <button
                 className="btn-secondary"
-                onClick={() => setModal(null)}
+                onClick={() => {
+                  const shouldRefresh =
+                    modal.type === 'error' && modal.message.includes('Termin je upravo rezervisan')
+                  setModal(null)
+                  if (shouldRefresh) {
+                    window.location.reload()
+                  }
+                }}
               >
-                Zatvori
+                {modal.type === 'error' ? 'OK' : 'Zatvori'}
               </button>
               {modal.type === 'success' && (
                 <button

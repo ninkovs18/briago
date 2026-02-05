@@ -21,6 +21,7 @@ const AdminLayout = () => {
             <NavLink to="/admin/reservations" className={navLink}>Rezervacije</NavLink>
             <NavLink to="/admin/services" className={navLink}>Usluge</NavLink>
             <NavLink to="/admin/users" className={navLink}>Korisnici</NavLink>
+            <NavLink to="/admin/settings" className={navLink}>Podešavanja</NavLink>
             <NavLink to="/" className={navLink}>Sajt</NavLink>
           </nav>
         </div>

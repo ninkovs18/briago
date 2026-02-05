@@ -204,7 +204,7 @@ export default function ReservationCalendar({
       `}</style>
       <div className="flex flex-col gap-2 px-2 py-2 border-b border-[#E7ECEA] sm:flex-row sm:items-center sm:justify-between">
         <div className="font-semibold text-sm sm:text-lg text-[#1F2937]">
-          {format(start, 'd MMM', { locale: srLatn })} – {format(addDays(start, 6), 'd MMM yyyy', { locale: srLatn })}
+          {format(start, 'dd.MM.yyyy')} – {format(addDays(start, 6), 'dd.MM.yyyy')}
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={onPrevWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">←</button>

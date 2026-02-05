@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
-import { collection, getDocs } from "firebase/firestore"
+import { collection, doc, getDocs, onSnapshot } from "firebase/firestore"
 import { db } from "../firebase"
+import { defaultWorkingHours, normalizeWorkingHours, WorkingHours } from "../utils/workingHours"
 
 // Firestore model
 export interface Service {
@@ -15,6 +16,7 @@ export interface Service {
 const Services = () => {
   const [services, setServices] = useState<Service[]>([])
   const [loading, setLoading] = useState<boolean>(true)
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours)
 
   useEffect(() => {
     const fetchServices = async () => {
@@ -42,6 +44,17 @@ const Services = () => {
     }
 
     fetchServices()
+  }, [])
+
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'workingHours'), (snap) => {
+      if (snap.exists()) {
+        setWorkingHours(normalizeWorkingHours(snap.data() as WorkingHours))
+      } else {
+        setWorkingHours(defaultWorkingHours)
+      }
+    })
+    return unsub
   }, [])
 
   if (loading) {
@@ -97,33 +110,25 @@ const Services = () => {
           <h2 className="text-3xl font-bold text-white mb-6 text-center">
             Radno vreme
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-xl font-semibold text-barbershop-gold mb-4">
-                Radni dani
-              </h3>
-              <div className="space-y-2 text-gray-300">
-                <div className="flex justify-between">
-                  <span>Ponedeljak – Petak</span>
-                  <span>09:00 – 19:00</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { key: '1', label: 'Ponedeljak' },
+              { key: '2', label: 'Utorak' },
+              { key: '3', label: 'Sreda' },
+              { key: '4', label: 'Četvrtak' },
+              { key: '5', label: 'Petak' },
+              { key: '6', label: 'Subota' },
+              { key: '0', label: 'Nedelja' }
+            ].map((day) => {
+              const config = workingHours.days[day.key]
+              const hoursLabel = config?.isOpen ? `${config.open} – ${config.close}` : 'Zatvoreno'
+              return (
+                <div key={day.key} className="flex items-center justify-between rounded-md bg-barbershop-dark/60 px-4 py-3 text-gray-200">
+                  <span className="font-semibold text-white">{day.label}</span>
+                  <span className="text-gray-300">{hoursLabel}</span>
                 </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-barbershop-gold mb-4">
-                Vikend
-              </h3>
-              <div className="space-y-2 text-gray-300">
-                <div className="flex justify-between">
-                  <span>Subota</span>
-                  <span>09:00 – 18:00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Nedelja</span>
-                  <span>10:00 – 16:00</span>
-                </div>
-              </div>
-            </div>
+              )
+            })}
           </div>
         </div>
       </div>

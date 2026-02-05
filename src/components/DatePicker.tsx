@@ -15,6 +15,7 @@ import {
   startOfWeek
 } from 'date-fns'
 import { srLatn } from 'date-fns/locale'
+import { formatDateDotted } from '../utils/date'
 
 function fmt(d: Date): string {
   return format(d, 'yyyy-MM-dd')
@@ -173,7 +174,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
           })}
         </div>
         <div className="px-4 pb-3 text-xs text-gray-400">
-          Izaberi datum između {fmt(minDate)} i {fmt(maxDate)}
+          Izaberi datum između {formatDateDotted(minDate)} i {formatDateDotted(maxDate)}
         </div>
       </div>
     </div>

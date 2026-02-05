@@ -1,25 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Combobox } from '@headlessui/react'
 import {
-  addDoc,
   collection,
   doc,
   onSnapshot,
-  updateDoc,
-  deleteDoc
+  runTransaction,
+  Timestamp
 } from 'firebase/firestore'
 import { addMinutes, differenceInMinutes, format, startOfWeek } from 'date-fns'
 import { db } from '../../firebase'
 import ReservationCalendar, { CalendarEvent } from '../components/ReservationCalendar'
+import {
+  defaultWorkingHours,
+  getDayConfig,
+  isDateInVacation,
+  isWithinWorkingHours,
+  normalizeWorkingHours,
+  WorkingHours
+} from '../../utils/workingHours'
 
 export type ReservationDoc = {
   id?: string
-  userId: string
-  serviceId: string
+  userId?: string | null
+  serviceId?: string | null
+  kind?: 'user' | 'guest' | 'break'
+  guestName?: string
   date?: string
   startTime?: string
   endTime?: string
-  status?: string
   durationMin?: number
 }
 
@@ -34,16 +42,20 @@ type UserDoc = {
 type ServiceDoc = { id: string; name: string; duration?: number }
 
 type FormState = {
+  kind: 'user' | 'guest' | 'break'
   userId: string
   serviceId: string
+  guestName: string
   date: string
   startTime: string
   duration: '30' | '60'
 }
 
 const emptyForm: FormState = {
+  kind: 'user',
   userId: '',
   serviceId: '',
+  guestName: '',
   date: '',
   startTime: '',
   duration: '30'
@@ -63,13 +75,13 @@ const AdminReservationsPage = () => {
   const highlightTimerRef = useRef<number | null>(null)
   const initialLoadRef = useRef(true)
   const [userQuery, setUserQuery] = useState('')
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'reservations'), (snap) => {
       const list: ReservationDoc[] = []
       snap.forEach((d) => {
         const data = d.data() as ReservationDoc
-        if (data.status && data.status !== 'active') return
         list.push({ ...data, id: d.id })
       })
       setReservations(list)
@@ -116,6 +128,17 @@ const AdminReservationsPage = () => {
     return unsub
   }, [])
 
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'settings', 'workingHours'), (snap) => {
+      if (snap.exists()) {
+        setWorkingHours(normalizeWorkingHours(snap.data() as WorkingHours))
+      } else {
+        setWorkingHours(defaultWorkingHours)
+      }
+    })
+    return unsub
+  }, [])
+
   const usersById = useMemo(() => {
     const map = new Map<string, UserDoc>()
     users.forEach((u) => map.set(u.id, u))
@@ -138,19 +161,27 @@ const AdminReservationsPage = () => {
     return Number.isNaN(dt.getTime()) ? null : dt
   }
 
+  const buildSlotId = (date: string, time: string) => `${date}_${time}`
+
   const events: CalendarEvent[] = useMemo(() => {
     return reservations.map((r) => {
       const start = toDateTime(r.date, r.startTime) ?? new Date()
       const end = toDateTime(r.date, r.endTime) ?? addMinutes(start, r.durationMin ?? 60)
-      const user = usersById.get(r.userId)
-      const service = servicesById.get(r.serviceId)
-      const title = `${user?.fullName || user?.email || 'Korisnik'} · ${service?.name || 'Usluga'}`
+      const kind = r.kind ?? (r.userId ? 'user' : r.guestName ? 'guest' : 'break')
+      const user = r.userId ? usersById.get(r.userId) : undefined
+      const service = r.serviceId ? servicesById.get(r.serviceId) : undefined
+      const title =
+        kind === 'break'
+          ? 'Pauza'
+          : kind === 'guest'
+            ? `${r.guestName || 'Guest'} · ${service?.name || 'Usluga'}`
+            : `${user?.fullName || user?.email || 'Korisnik'} · ${service?.name || 'Usluga'}`
       return {
-        id: r.id || `${r.userId}-${r.startTime}`,
+        id: r.id || `${r.userId || r.guestName || 'break'}-${r.startTime || 'time'}`,
         title,
         start,
         end,
-        color: '#3b82f6'
+        color: kind === 'break' ? '#6b7280' : kind === 'guest' ? '#60a5fa' : '#3b82f6'
       }
     })
   }, [reservations, servicesById, usersById])
@@ -160,6 +191,7 @@ const AdminReservationsPage = () => {
     setError(null)
     setForm({
       ...emptyForm,
+      kind: 'user',
       date: format(dt, 'yyyy-MM-dd'),
       startTime: format(dt, 'HH:mm')
     })
@@ -171,11 +203,14 @@ const AdminReservationsPage = () => {
     if (!res) return
     const start = ev.start
     const duration = Math.max(30, differenceInMinutes(ev.end, ev.start))
+    const kind = res.kind ?? (res.userId ? 'user' : res.guestName ? 'guest' : 'break')
     setEditingId(res.id || null)
     setError(null)
     setForm({
+      kind,
       userId: res.userId || '',
       serviceId: res.serviceId || '',
+      guestName: res.guestName || '',
       date: format(start, 'yyyy-MM-dd'),
       startTime: format(start, 'HH:mm'),
       duration: duration >= 60 ? '60' : '30'
@@ -191,8 +226,20 @@ const AdminReservationsPage = () => {
   }
 
   const saveReservation = async () => {
-    if (!form.userId || !form.serviceId || !form.date || !form.startTime) {
+    if (!form.date || !form.startTime) {
       setError('Popunite sva obavezna polja.')
+      return
+    }
+    if (form.kind !== 'break' && !form.serviceId) {
+      setError('Izaberite uslugu.')
+      return
+    }
+    if (form.kind === 'user' && !form.userId) {
+      setError('Izaberite korisnika.')
+      return
+    }
+    if (form.kind === 'guest' && !form.guestName.trim()) {
+      setError('Unesite ime gosta.')
       return
     }
     setSaving(true)
@@ -201,21 +248,72 @@ const AdminReservationsPage = () => {
       const start = new Date(`${form.date}T${form.startTime}`)
       const duration = Number(form.duration)
       const end = addMinutes(start, duration)
+      const expireAtDate = new Date(`${form.date}T00:00:00`)
+      expireAtDate.setDate(expireAtDate.getDate() + 90)
+      if (isDateInVacation(start, workingHours)) {
+        setError('Salon je na odmoru u izabranom periodu.')
+        return
+      }
+      const dayConfig = getDayConfig(start, workingHours)
+      if (!isWithinWorkingHours(dayConfig, format(start, 'HH:mm'), duration)) {
+        setError('Termin je van radnog vremena.')
+        return
+      }
       const payload = {
-        userId: form.userId,
-        serviceId: form.serviceId,
+        kind: form.kind,
+        userId: form.kind === 'user' ? form.userId : null,
+        guestName: form.kind === 'guest' ? form.guestName.trim() : null,
+        serviceId: form.kind === 'break' ? null : form.serviceId,
         date: format(start, 'yyyy-MM-dd'),
         startTime: format(start, 'HH:mm'),
         endTime: format(end, 'HH:mm'),
-        status: 'active',
-        durationMin: duration
+        durationMin: duration,
+        expireAt: Timestamp.fromDate(expireAtDate)
       }
 
       if (editingId) {
-        await updateDoc(doc(db, 'reservations', editingId), payload)
+        const existing = reservations.find((r) => r.id === editingId)
+        const oldSlotId =
+          existing?.date && existing?.startTime ? buildSlotId(existing.date, existing.startTime) : null
+        const newSlotId = buildSlotId(payload.date, payload.startTime)
+
+        await runTransaction(db, async (tx) => {
+          const resRef = doc(db, 'reservations', editingId)
+          if (oldSlotId && oldSlotId !== newSlotId) {
+            const newSlotRef = doc(db, 'slots', newSlotId)
+            const newSlotSnap = await tx.get(newSlotRef)
+            if (newSlotSnap.exists()) {
+              throw new Error('SLOT_TAKEN')
+            }
+            tx.set(newSlotRef, {
+              date: payload.date,
+              startTime: payload.startTime,
+              reservationId: editingId,
+              updatedAt: new Date()
+            })
+            tx.delete(doc(db, 'slots', oldSlotId))
+          }
+          tx.update(resRef, payload)
+        })
       } else {
-        const ref = await addDoc(collection(db, 'reservations'), payload)
-        setHighlightId(ref.id)
+        const createdId = await runTransaction(db, async (tx) => {
+          const newSlotId = buildSlotId(payload.date, payload.startTime)
+          const slotRef = doc(db, 'slots', newSlotId)
+          const slotSnap = await tx.get(slotRef)
+          if (slotSnap.exists()) {
+            throw new Error('SLOT_TAKEN')
+          }
+          const resRef = doc(collection(db, 'reservations'))
+          tx.set(slotRef, {
+            date: payload.date,
+            startTime: payload.startTime,
+            reservationId: resRef.id,
+            createdAt: new Date()
+          })
+          tx.set(resRef, payload)
+          return resRef.id
+        })
+        setHighlightId(createdId)
         if (highlightTimerRef.current) {
           window.clearTimeout(highlightTimerRef.current)
         }
@@ -227,7 +325,11 @@ const AdminReservationsPage = () => {
       closeModal()
     } catch (e) {
       console.error(e)
-      setError('Greška pri čuvanju termina.')
+      if (e instanceof Error && e.message === 'SLOT_TAKEN') {
+        setError('Termin je već zauzet. Izaberite drugo vreme.')
+      } else {
+        setError('Greška pri čuvanju termina.')
+      }
     } finally {
       setSaving(false)
     }
@@ -237,7 +339,15 @@ const AdminReservationsPage = () => {
     if (!editingId) return
     setSaving(true)
     try {
-      await deleteDoc(doc(db, 'reservations', editingId))
+      const existing = reservations.find((r) => r.id === editingId)
+      const slotId =
+        existing?.date && existing?.startTime ? buildSlotId(existing.date, existing.startTime) : null
+      await runTransaction(db, async (tx) => {
+        tx.delete(doc(db, 'reservations', editingId))
+        if (slotId) {
+          tx.delete(doc(db, 'slots', slotId))
+        }
+      })
       closeModal()
     } catch (e) {
       console.error(e)
@@ -251,10 +361,47 @@ const AdminReservationsPage = () => {
     const res = reservations.find((r) => r.id === ev.id)
     if (!res?.id) return
     try {
-      await updateDoc(doc(db, 'reservations', res.id), {
-        date: format(nextStart, 'yyyy-MM-dd'),
-        startTime: format(nextStart, 'HH:mm'),
-        endTime: format(nextEnd, 'HH:mm')
+      const nextDate = format(nextStart, 'yyyy-MM-dd')
+      const nextTime = format(nextStart, 'HH:mm')
+      const nextEndTime = format(nextEnd, 'HH:mm')
+      const expireAtDate = new Date(`${nextDate}T00:00:00`)
+      expireAtDate.setDate(expireAtDate.getDate() + 90)
+      const duration = Math.max(30, differenceInMinutes(nextEnd, nextStart))
+      if (isDateInVacation(nextStart, workingHours)) {
+        setError('Salon je na odmoru u izabranom periodu.')
+        return
+      }
+      const dayConfig = getDayConfig(nextStart, workingHours)
+      if (!isWithinWorkingHours(dayConfig, nextTime, duration)) {
+        setError('Termin je van radnog vremena.')
+        return
+      }
+      const oldSlotId =
+        res.date && res.startTime ? buildSlotId(res.date, res.startTime) : null
+      const newSlotId = buildSlotId(nextDate, nextTime)
+
+      await runTransaction(db, async (tx) => {
+        const resRef = doc(db, 'reservations', res.id!)
+        if (oldSlotId && oldSlotId !== newSlotId) {
+          const newSlotRef = doc(db, 'slots', newSlotId)
+          const newSlotSnap = await tx.get(newSlotRef)
+          if (newSlotSnap.exists()) {
+            throw new Error('SLOT_TAKEN')
+          }
+          tx.set(newSlotRef, {
+            date: nextDate,
+            startTime: nextTime,
+            reservationId: res.id,
+            updatedAt: new Date()
+          })
+          tx.delete(doc(db, 'slots', oldSlotId))
+        }
+        tx.update(resRef, {
+          date: nextDate,
+          startTime: nextTime,
+          endTime: nextEndTime,
+          expireAt: Timestamp.fromDate(expireAtDate)
+        })
       })
     } catch (e) {
       console.error(e)
@@ -286,6 +433,14 @@ const AdminReservationsPage = () => {
     }))
   }, [services])
 
+  const { minHour, maxHour } = useMemo(() => {
+    const openDays = Object.values(workingHours.days).filter((d) => d.isOpen)
+    if (openDays.length === 0) return { minHour: 8, maxHour: 20 }
+    const min = Math.min(...openDays.map((d) => Number(d.open.split(':')[0] || 0)))
+    const max = Math.max(...openDays.map((d) => Number(d.close.split(':')[0] || 24)))
+    return { minHour: min, maxHour: max }
+  }, [workingHours.days])
+
   return (
     <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
       <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-800">Rezervacije</h1>
@@ -298,13 +453,13 @@ const AdminReservationsPage = () => {
             onPrevWeek={() => setWeekStart(addMinutes(weekStart, -7 * 24 * 60))}
             onNextWeek={() => setWeekStart(addMinutes(weekStart, 7 * 24 * 60))}
             onSlotClick={openCreate}
-            onEventClick={openEdit}
-            onEventMove={moveReservation}
-            minHour={9}
-            maxHour={19}
-            stepMinutes={30}
-            highlightEventId={highlightId}
-          />
+          onEventClick={openEdit}
+          onEventMove={moveReservation}
+          minHour={minHour}
+          maxHour={maxHour}
+          stepMinutes={30}
+          highlightEventId={highlightId}
+        />
         </div>
       </div>
 
@@ -316,6 +471,27 @@ const AdminReservationsPage = () => {
             </h3>
 
             <div className="mt-4 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Tip *</label>
+                <select
+                  value={form.kind}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      kind: e.target.value as FormState['kind'],
+                      userId: e.target.value === 'user' ? form.userId : '',
+                      guestName: e.target.value === 'guest' ? form.guestName : '',
+                      serviceId: e.target.value === 'break' ? '' : form.serviceId
+                    })
+                  }
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="user">Korisnik</option>
+                  <option value="guest">Guest</option>
+                  <option value="break">Pauza</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Datum *</label>
                 <input
@@ -348,59 +524,76 @@ const AdminReservationsPage = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Korisnik *</label>
-                <Combobox
-                  value={selectedUser}
-                  onChange={(u) => {
-                    setForm({ ...form, userId: u?.id ?? '' })
-                    setUserQuery('')
-                  }}
-                >
-                  <div className="relative">
-                    <Combobox.Input
-                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                      displayValue={(u: { id: string; label: string } | null) => u?.label ?? ''}
-                      onChange={(e) => {
-                        setUserQuery(e.target.value)
-                        if (form.userId) setForm({ ...form, userId: '' })
-                      }}
-                      placeholder="Izaberi korisnika"
-                    />
-                    <Combobox.Options className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border border-gray-200 bg-white text-sm shadow-lg">
-                      {filteredUserOptions.length === 0 ? (
-                        <div className="px-3 py-2 text-gray-500">Nema rezultata</div>
-                      ) : (
-                        filteredUserOptions.map((u) => (
-                          <Combobox.Option
-                            key={u.id}
-                            value={u}
-                            className={({ active }) =>
-                              `cursor-pointer px-3 py-2 ${active ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`
-                            }
-                          >
-                            {u.label}
-                          </Combobox.Option>
-                        ))
-                      )}
-                    </Combobox.Options>
-                  </div>
-                </Combobox>
-              </div>
+              {form.kind === 'user' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Korisnik *</label>
+                  <Combobox
+                    value={selectedUser}
+                    onChange={(u) => {
+                      setForm({ ...form, userId: u?.id ?? '' })
+                      setUserQuery('')
+                    }}
+                  >
+                    <div className="relative">
+                      <Combobox.Input
+                        className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                        displayValue={(u: { id: string; label: string } | null) => u?.label ?? ''}
+                        onChange={(e) => {
+                          setUserQuery(e.target.value)
+                          if (form.userId) setForm({ ...form, userId: '' })
+                        }}
+                        placeholder="Izaberi korisnika"
+                      />
+                      <Combobox.Options className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border border-gray-200 bg-white text-sm shadow-lg">
+                        {filteredUserOptions.length === 0 ? (
+                          <div className="px-3 py-2 text-gray-500">Nema rezultata</div>
+                        ) : (
+                          filteredUserOptions.map((u) => (
+                            <Combobox.Option
+                              key={u.id}
+                              value={u}
+                              className={({ active }) =>
+                                `cursor-pointer px-3 py-2 ${active ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`
+                              }
+                            >
+                              {u.label}
+                            </Combobox.Option>
+                          ))
+                        )}
+                      </Combobox.Options>
+                    </div>
+                  </Combobox>
+                </div>
+              )}
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Usluga *</label>
-                <select
-                  value={form.serviceId}
-                  onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                >
-                  <option value="">Izaberi uslugu</option>
-                  {serviceOptions.map((s) => (
-                    <option key={s.id} value={s.id}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
+              {form.kind === 'guest' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Ime gosta *</label>
+                  <input
+                    type="text"
+                    value={form.guestName}
+                    onChange={(e) => setForm({ ...form, guestName: e.target.value })}
+                    className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                    placeholder="Ime i prezime / nadimak"
+                  />
+                </div>
+              )}
+
+              {form.kind !== 'break' && (
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Usluga *</label>
+                  <select
+                    value={form.serviceId}
+                    onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
+                    className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Izaberi uslugu</option>
+                    {serviceOptions.map((s) => (
+                      <option key={s.id} value={s.id}>{s.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {error && <p className="text-sm text-red-600">{error}</p>}
             </div>

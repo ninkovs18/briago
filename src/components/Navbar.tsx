@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useState } from 'react'
 
 const Navbar = () => {
-  const { currentUser, logout } = useAuth()
+  const { currentUser, logout, isAdmin } = useAuth()
   const navigate = useNavigate()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
 
@@ -51,6 +51,14 @@ const Navbar = () => {
             
             {currentUser ? (
               <div className="flex items-center space-x-4">
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="text-white hover:text-barbershop-gold transition-colors"
+                  >
+                    Admin panel
+                  </Link>
+                )}
                 <Link 
                   to="/profile" 
                   className="text-white hover:text-barbershop-gold transition-colors"
@@ -103,6 +111,11 @@ const Navbar = () => {
             </Link>
             {currentUser ? (
               <>
+                {isAdmin && (
+                  <Link to="/admin" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
+                    Admin panel
+                  </Link>
+                )}
                 <Link to="/profile" onClick={() => setIsMenuOpen(false)} className="block px-3 py-2 text-white hover:text-barbershop-gold">
                   Profil
                 </Link>

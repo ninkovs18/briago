@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { collection, addDoc, updateDoc, doc, onSnapshot } from 'firebase/firestore'
-import { db } from '../../firebase'
+import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth'
+import { collection, getDocs, query, updateDoc, doc, onSnapshot, setDoc, where } from 'firebase/firestore'
+import { db, getSecondaryAuth } from '../../firebase'
+import { isValidSerbianPhone, normalizePhone } from '../../utils/phone'
 
 // --- Types & Constants ---
 type UserDoc = { id?: string; email: string; fullName?: string; phone?: string; verified?: boolean; isAdmin?: boolean; disabled?: boolean }
@@ -17,6 +19,7 @@ const AdminUsersPage = () => {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'pending' | 'list' | 'form'>('pending')
+  const [pendingTab, setPendingTab] = useState<'pending' | 'deleted'>('pending')
 
 
   // 1. Povezivanje sa Firestore-om
@@ -36,21 +39,58 @@ const AdminUsersPage = () => {
         setError('Email je obavezan.');
         return;
     }
+    if (!form.fullName?.trim()) {
+        setError('Ime i prezime ili nadimak je obavezan.');
+        return;
+    }
     
     setError(null);
     setLoading(true);
 
     try {
+        const normalizedPhone = normalizePhone(form.phone || '')
+        if (form.phone?.trim() && !isValidSerbianPhone(normalizedPhone)) {
+          setError('Unesi važeći broj telefona (npr. +381641234567 ili 0641234567).')
+          return
+        }
+
         const dataToSave = {
             email: form.email.trim(),
             fullName: form.fullName?.trim() || '',
-            phone: form.phone?.trim() || ''
+            phone: normalizedPhone
         };
 
+        const nameSnap = await getDocs(
+          query(collection(db, 'users'), where('fullName', '==', dataToSave.fullName))
+        )
+        const nameTaken = nameSnap.docs.some((d) => d.id !== editingId)
+        if (nameTaken) {
+          setError('Ime i prezime ili nadimak već postoji. Unesi drugi.')
+          return
+        }
+
         if (editingId) {
-            await updateDoc(doc(db, 'users', editingId), dataToSave)
+            const updatePayload = {
+              fullName: dataToSave.fullName,
+              phone: dataToSave.phone
+            }
+            await updateDoc(doc(db, 'users', editingId), updatePayload)
         } else {
-            await addDoc(collection(db, 'users'), { ...dataToSave, verified: false, disabled: false })
+            const secondaryAuth = getSecondaryAuth()
+            const password = 'promeni123'
+            const cred = await createUserWithEmailAndPassword(secondaryAuth, dataToSave.email, password)
+            try {
+              await setDoc(doc(db, 'users', cred.user.uid), {
+                ...dataToSave,
+                verified: true,
+                disabled: false,
+                isAdmin: false,
+                createdAt: new Date()
+              })
+            } catch (e) {
+              await deleteUser(cred.user)
+              throw e
+            }
         }
         
         setForm(empty); 
@@ -102,6 +142,7 @@ const AdminUsersPage = () => {
       if (selectedUser) {
           setForm(selectedUser);
           setEditingId(selectedUser.id!);
+          setActiveTab('form');
       }
   }
 
@@ -128,7 +169,21 @@ const AdminUsersPage = () => {
   }
 
   const pendingUsers = useMemo(() => items.filter((u) => !u.isAdmin && !u.disabled && !u.verified), [items])
+  const deletedUsers = useMemo(() => items.filter((u) => !u.isAdmin && u.disabled), [items])
   const verifiedUsers = useMemo(() => items.filter((u) => !u.isAdmin && !u.disabled && u.verified), [items])
+
+  const restoreUser = async (id?: string) => {
+    if (!id) return
+    setLoading(true)
+    try {
+      await updateDoc(doc(db, 'users', id), { disabled: false })
+    } catch (err) {
+      console.error(err)
+      setError('Greška pri vraćanju profila.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const deleteUser = async (id?: string) => {
     if (!id) return
@@ -147,7 +202,7 @@ const AdminUsersPage = () => {
         <button
           onClick={() => setActiveTab('pending')}
           className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold ${
-            activeTab === 'pending' ? 'bg-yellow-200 text-yellow-900' : 'bg-white text-gray-600 border border-gray-200'
+            activeTab === 'pending' ? 'bg-[#1F50FF] text-white' : 'bg-white text-gray-600 border border-gray-200'
           }`}
         >
           Čekanje
@@ -177,45 +232,109 @@ const AdminUsersPage = () => {
         <div className={`lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden ${activeTab === 'form' ? 'hidden sm:block' : ''}`}>
           
           <div className="p-3 sm:p-4">
-              {/* Lista korisnika na čekanju */}
-              <div className={`mb-4 sm:mb-6 rounded-lg border border-gray-200 bg-white p-3 sm:p-4 ${activeTab === 'list' ? 'hidden sm:block' : ''}`}>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
-                  <h2 className="font-semibold text-sm sm:text-lg text-gray-900">Korisnici na čekanju verifikacije</h2>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
-                    {pendingUsers.length}
-                  </span>
+              {/* Pending sub-tabs */}
+              <div className={`mb-4 sm:mb-6 ${activeTab === 'list' ? 'hidden sm:block' : ''}`}>
+                <div className="mb-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setPendingTab('pending')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border ${
+                      pendingTab === 'pending'
+                        ? 'bg-[#1F50FF] text-white border-[#1F50FF]'
+                        : 'bg-white text-gray-600 border-gray-200'
+                    }`}
+                  >
+                    Na čekanju ({pendingUsers.length})
+                  </button>
+                  <button
+                    onClick={() => setPendingTab('deleted')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border ${
+                      pendingTab === 'deleted'
+                        ? 'bg-[#1F50FF] text-white border-[#1F50FF]'
+                        : 'bg-white text-gray-600 border-gray-200'
+                    }`}
+                  >
+                    Obrisani ({deletedUsers.length})
+                  </button>
                 </div>
-                {pendingUsers.length === 0 ? (
-                  <p className="text-sm text-gray-500">Nema korisnika koji čekaju verifikaciju.</p>
-                ) : (
-                  <div className="max-h-[260px] overflow-y-auto pr-1">
-                    <div className="space-y-2">
-                      {pendingUsers.map((u) => (
-                        <div key={u.id} className="flex flex-col gap-3 rounded border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <div className="text-sm font-medium text-gray-900 break-words">{u.email}</div>
-                            <div className="text-xs text-gray-500">{u.fullName || '—'}</div>
-                            <div className="text-xs text-gray-500">{u.phone || '—'}</div>
-                          </div>
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                            <button
-                              onClick={() => verifyUser(u.id)}
-                              disabled={loading}
-                              className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-green-600 text-white disabled:opacity-50 w-full sm:w-auto"
-                            >
-                              Verifikuj
-                            </button>
-                            <button
-                              onClick={() => deleteUser(u.id)}
-                              disabled={loading}
-                              className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 w-full sm:w-auto"
-                            >
-                              Obriši
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+
+                {pendingTab === 'pending' && (
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+                      <h2 className="font-semibold text-sm sm:text-lg text-gray-900">Korisnici na čekanju verifikacije</h2>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        {pendingUsers.length}
+                      </span>
                     </div>
+                    {pendingUsers.length === 0 ? (
+                      <p className="text-sm text-gray-500">Nema korisnika koji čekaju verifikaciju.</p>
+                    ) : (
+                      <div className="max-h-[260px] overflow-y-auto pr-1">
+                        <div className="space-y-2">
+                          {pendingUsers.map((u) => (
+                            <div key={u.id} className="flex flex-col gap-3 rounded border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 break-words">{u.email}</div>
+                                <div className="text-xs text-gray-500">{u.fullName || '—'}</div>
+                                <div className="text-xs text-gray-500">{u.phone || '—'}</div>
+                              </div>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <button
+                                  onClick={() => verifyUser(u.id)}
+                                  disabled={loading}
+                                  className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-green-600 text-white disabled:opacity-50 w-full sm:w-auto"
+                                >
+                                  Verifikuj
+                                </button>
+                                <button
+                                  onClick={() => deleteUser(u.id)}
+                                  disabled={loading}
+                                  className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 w-full sm:w-auto"
+                                >
+                                  Obriši
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {pendingTab === 'deleted' && (
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
+                      <h2 className="font-semibold text-sm sm:text-lg text-gray-900">Obrisani korisnici</h2>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        {deletedUsers.length}
+                      </span>
+                    </div>
+                    {deletedUsers.length === 0 ? (
+                      <p className="text-sm text-gray-500">Nema obrisanih korisnika.</p>
+                    ) : (
+                      <div className="max-h-[260px] overflow-y-auto pr-1">
+                        <div className="space-y-2">
+                          {deletedUsers.map((u) => (
+                            <div key={u.id} className="flex flex-col gap-3 rounded border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 break-words">{u.email}</div>
+                                <div className="text-xs text-gray-500">{u.fullName || '—'}</div>
+                                <div className="text-xs text-gray-500">{u.phone || '—'}</div>
+                              </div>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <button
+                                  onClick={() => restoreUser(u.id)}
+                                  disabled={loading}
+                                  className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-blue-600 text-white disabled:opacity-50 w-full sm:w-auto"
+                                >
+                                  Vrati profil
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -250,7 +369,7 @@ const AdminUsersPage = () => {
                   <table className="min-w-[320px] w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
                   <thead className="bg-gray-50 text-gray-600 uppercase tracking-wide text-xs">
                     <tr className="text-left border-b border-gray-200 divide-x divide-gray-200">
-                      <th className="py-3 px-2 sm:px-3">Ime i prezime</th>
+                        <th className="py-3 px-2 sm:px-3">Ime i prezime ili nadimak</th>
                       <th className="py-3 px-2 sm:px-3">Telefon</th>
                     </tr>
                   </thead>
@@ -303,12 +422,13 @@ const AdminUsersPage = () => {
               value={form.email} 
               onChange={(e)=>setForm({...form, email:e.target.value})} 
               type="email"
+              disabled={!!editingId}
             />
             
             {/* INPUT: Ime */}
             <input 
               className="w-full border border-gray-300 rounded px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-              placeholder="Ime i prezime" 
+              placeholder="Ime i prezime ili nadimak" 
               value={form.fullName || ''} 
               onChange={(e)=>setForm({...form, fullName:e.target.value})} 
               type="text"
