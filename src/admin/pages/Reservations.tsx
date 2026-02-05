@@ -4,8 +4,10 @@ import {
   collection,
   doc,
   onSnapshot,
+  query,
   runTransaction,
-  Timestamp
+  Timestamp,
+  where
 } from 'firebase/firestore'
 import { addMinutes, differenceInMinutes, format, startOfWeek } from 'date-fns'
 import { db } from '../../firebase'
@@ -72,19 +74,31 @@ const AdminReservationsPage = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  const [loadingReservations, setLoadingReservations] = useState<boolean>(true)
   const highlightTimerRef = useRef<number | null>(null)
   const initialLoadRef = useRef(true)
   const [userQuery, setUserQuery] = useState('')
   const [workingHours, setWorkingHours] = useState<WorkingHours>(defaultWorkingHours)
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'reservations'), (snap) => {
+    const start = weekStart
+    const end = addMinutes(start, 6 * 24 * 60)
+    const startStr = format(start, 'yyyy-MM-dd')
+    const endStr = format(end, 'yyyy-MM-dd')
+    const q = query(
+      collection(db, 'reservations'),
+      where('date', '>=', startStr),
+      where('date', '<=', endStr)
+    )
+    setLoadingReservations(true)
+    const unsub = onSnapshot(q, (snap) => {
       const list: ReservationDoc[] = []
       snap.forEach((d) => {
         const data = d.data() as ReservationDoc
         list.push({ ...data, id: d.id })
       })
       setReservations(list)
+      setLoadingReservations(false)
 
       if (!initialLoadRef.current) {
         const added = snap.docChanges().find((c) => c.type === 'added')
@@ -103,7 +117,7 @@ const AdminReservationsPage = () => {
       if (initialLoadRef.current) initialLoadRef.current = false
     })
     return unsub
-  }, [])
+  }, [weekStart])
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'users'), (snap) => {
@@ -447,6 +461,9 @@ const AdminReservationsPage = () => {
 
       <div className="-mx-2 sm:mx-0">
         <div className="bg-white rounded-none sm:rounded-lg border border-gray-100 shadow-lg p-0 sm:p-2">
+          {loadingReservations && (
+            <div className="px-4 py-3 text-sm text-gray-500">Učitavanje rezervacija...</div>
+          )}
           <ReservationCalendar
             weekStart={weekStart}
             events={events}
