@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth'
+import { createUserWithEmailAndPassword, deleteUser as deleteAuthUser } from 'firebase/auth'
 import { collection, getDocs, query, updateDoc, doc, onSnapshot, setDoc, where } from 'firebase/firestore'
 import { db, getSecondaryAuth } from '../../firebase'
 import { isValidSerbianPhone, normalizePhone } from '../../utils/phone'
@@ -88,7 +88,7 @@ const AdminUsersPage = () => {
                 createdAt: new Date()
               })
             } catch (e) {
-              await deleteUser(cred.user)
+              await deleteAuthUser(cred.user)
               throw e
             }
         }
@@ -185,7 +185,7 @@ const AdminUsersPage = () => {
     }
   }
 
-  const deleteUser = async (id?: string) => {
+  const requestDeleteUser = async (id?: string) => {
     if (!id) return
     openDelete(id)
   }
@@ -286,7 +286,7 @@ const AdminUsersPage = () => {
                                   Verifikuj
                                 </button>
                                 <button
-                                  onClick={() => deleteUser(u.id)}
+                              onClick={() => requestDeleteUser(u.id)}
                                   disabled={loading}
                                   className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 w-full sm:w-auto"
                                 >

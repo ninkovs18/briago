@@ -174,13 +174,6 @@ const Profile = () => {
     }
   }
 
-  const formatCreatedAt = (value?: Timestamp | Date | string) => {
-    if (!value) return null
-    if (value instanceof Timestamp) return formatDateDotted(value.toDate())
-    if (value instanceof Date) return formatDateDotted(value)
-    return formatDateDotted(value)
-  }
-
   const handleProfileSave = async () => {
     if (!currentUser?.uid) return
     const normalizedFullName = profileEdit.fullName.trim()
