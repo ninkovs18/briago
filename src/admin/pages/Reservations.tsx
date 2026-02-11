@@ -54,7 +54,7 @@ type FormState = {
 }
 
 const emptyForm: FormState = {
-  kind: 'user',
+  kind: 'guest',
   userId: '',
   serviceId: '',
   guestName: '',
@@ -198,7 +198,7 @@ const AdminReservationsPage = () => {
     setError(null)
     setForm({
       ...emptyForm,
-      kind: 'user',
+      kind: 'guest',
       date: format(dt, 'yyyy-MM-dd'),
       startTime: format(dt, 'HH:mm')
     })
@@ -491,8 +491,8 @@ const AdminReservationsPage = () => {
                   }
                   className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 >
-                  <option value="user">Korisnik</option>
                   <option value="guest">Guest</option>
+                  <option value="user">Korisnik</option>
                   <option value="break">Pauza</option>
                 </select>
               </div>
