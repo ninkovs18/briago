@@ -447,13 +447,8 @@ const AdminReservationsPage = () => {
     }))
   }, [services])
 
-  const { minHour, maxHour } = useMemo(() => {
-    const openDays = Object.values(workingHours.days).filter((d) => d.isOpen)
-    if (openDays.length === 0) return { minHour: 8, maxHour: 20 }
-    const min = Math.min(...openDays.map((d) => Number(d.open.split(':')[0] || 0)))
-    const max = Math.max(...openDays.map((d) => Number(d.close.split(':')[0] || 24)))
-    return { minHour: min, maxHour: max }
-  }, [workingHours.days])
+  const minHour = 9
+  const maxHour = 20
 
   return (
     <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
