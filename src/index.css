@@ -35,6 +35,12 @@
   }
 
   @media (max-width: 640px) {
+    .admin-panel input,
+    .admin-panel select,
+    .admin-panel textarea {
+      font-size: 16px !important;
+    }
+
     .admin-panel input[type='date'],
     .admin-panel input[type='time'] {
       font-size: 16px;
