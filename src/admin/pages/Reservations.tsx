@@ -159,12 +159,6 @@ const AdminReservationsPage = () => {
     return map
   }, [users])
 
-  const servicesById = useMemo(() => {
-    const map = new Map<string, ServiceDoc>()
-    services.forEach((s) => map.set(s.id, s))
-    return map
-  }, [services])
-
   const toDateTime = (date?: string, time?: string) => {
     if (!date || !time) return null
     if (time.includes('T')) {
@@ -183,13 +177,12 @@ const AdminReservationsPage = () => {
       const end = toDateTime(r.date, r.endTime) ?? addMinutes(start, r.durationMin ?? 60)
       const kind = r.kind ?? (r.userId ? 'user' : r.guestName ? 'guest' : 'break')
       const user = r.userId ? usersById.get(r.userId) : undefined
-      const service = r.serviceId ? servicesById.get(r.serviceId) : undefined
       const title =
         kind === 'break'
           ? 'Pauza'
           : kind === 'guest'
-            ? `${r.guestName || 'Guest'} · ${service?.name || 'Usluga'}`
-            : `${user?.fullName || user?.email || 'Korisnik'} · ${service?.name || 'Usluga'}`
+            ? (r.guestName || 'Guest')
+            : (user?.fullName || user?.email || 'Korisnik')
       return {
         id: r.id || `${r.userId || r.guestName || 'break'}-${r.startTime || 'time'}`,
         title,
@@ -198,7 +191,7 @@ const AdminReservationsPage = () => {
         color: kind === 'break' ? '#6b7280' : kind === 'guest' ? '#60a5fa' : '#3b82f6'
       }
     })
-  }, [reservations, servicesById, usersById])
+  }, [reservations, usersById])
 
   const openCreate = (dt: Date) => {
     setEditingId(null)
