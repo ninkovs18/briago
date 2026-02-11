@@ -10,6 +10,29 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', 'Roc Grotesk', 'Poppins', ui-sans-serif, system-ui, sans-serif;
   }
+
+  .admin-panel input[type='date'],
+  .admin-panel input[type='time'] {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .admin-panel input[type='date']::-webkit-date-and-time-value,
+  .admin-panel input[type='time']::-webkit-date-and-time-value {
+    text-align: left;
+  }
+
+  @media (max-width: 640px) {
+    .admin-panel input[type='date'],
+    .admin-panel input[type='time'] {
+      font-size: 16px;
+      line-height: 1.25;
+      min-height: 42px;
+    }
+  }
 }
 
 @layer components {
