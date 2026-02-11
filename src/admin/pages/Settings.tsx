@@ -103,7 +103,7 @@ const AdminSettingsPage = () => {
                       type="time"
                       value={config?.open ?? '09:00'}
                       onChange={(e) => updateDay(day.key, { open: e.target.value })}
-                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                      className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
                       disabled={!config?.isOpen}
                     />
                   </div>
@@ -113,7 +113,7 @@ const AdminSettingsPage = () => {
                       type="time"
                       value={config?.close ?? '17:00'}
                       onChange={(e) => updateDay(day.key, { close: e.target.value })}
-                      className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                      className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
                       disabled={!config?.isOpen}
                     />
                   </div>
@@ -159,7 +159,7 @@ const AdminSettingsPage = () => {
                   }
                 }))
               }
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
               disabled={!workingHours.vacation?.enabled}
             />
           </div>
@@ -178,7 +178,7 @@ const AdminSettingsPage = () => {
                   }
                 }))
               }
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
               disabled={!workingHours.vacation?.enabled}
             />
           </div>

@@ -14,10 +14,19 @@
   .admin-panel input[type='date'],
   .admin-panel input[type='time'] {
     display: block;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
     box-sizing: border-box;
+  }
+
+  .admin-panel .native-datetime-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    min-inline-size: 0 !important;
   }
 
   .admin-panel input[type='date']::-webkit-date-and-time-value,
@@ -28,6 +37,12 @@
   @media (max-width: 640px) {
     .admin-panel input[type='date'],
     .admin-panel input[type='time'] {
+      font-size: 16px;
+      line-height: 1.25;
+      min-height: 42px;
+    }
+
+    .admin-panel .native-datetime-input {
       font-size: 16px;
       line-height: 1.25;
       min-height: 42px;

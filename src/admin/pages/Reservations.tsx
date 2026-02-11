@@ -482,7 +482,7 @@ const AdminReservationsPage = () => {
 
       {modalOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md overflow-x-hidden rounded-lg bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900">
               {editingId ? 'Izmeni termin' : 'Novi termin'}
             </h3>
@@ -515,7 +515,7 @@ const AdminReservationsPage = () => {
                   type="date"
                   value={form.date}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
 
@@ -525,7 +525,7 @@ const AdminReservationsPage = () => {
                   type="time"
                   value={form.startTime}
                   onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
 
