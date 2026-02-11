@@ -482,7 +482,7 @@ const AdminReservationsPage = () => {
 
       {modalOpen && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md overflow-x-hidden rounded-lg bg-white p-5 shadow-xl">
+          <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold text-gray-900">
               {editingId ? 'Izmeni termin' : 'Novi termin'}
             </h3>

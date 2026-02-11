@@ -46,6 +46,33 @@
       font-size: 16px;
       line-height: 1.25;
       min-height: 42px;
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .admin-panel .native-datetime-input::-webkit-datetime-edit {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0;
+    }
+
+    .admin-panel .native-datetime-input::-webkit-date-and-time-value {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .admin-panel .native-datetime-input::-webkit-calendar-picker-indicator {
+      margin: 0;
+      padding: 0;
+      transform: scale(0.9);
+      transform-origin: right center;
     }
   }
 }
