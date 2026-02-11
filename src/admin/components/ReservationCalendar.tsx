@@ -188,7 +188,7 @@ export default function ReservationCalendar({
         }}
       >
         <div className="px-2 py-1 text-[10px] font-semibold select-none">
-          <div className="truncate text-[11px]">{ev.title}</div>
+          <div className="text-[11px] leading-tight whitespace-normal break-words">{ev.title}</div>
         </div>
       </div>
     )
