@@ -6,6 +6,7 @@ import { db } from '../firebase'
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth'
 import { isValidSerbianPhone, normalizePhone } from '../utils/phone'
 import { formatDateDotted } from '../utils/date'
+import { FiEye, FiEyeOff } from 'react-icons/fi'
 
 const Profile = () => {
   const { currentUser } = useAuth()
@@ -25,6 +26,9 @@ const Profile = () => {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   if (!currentUser) {
     return <Navigate to="/login" />
@@ -425,27 +429,57 @@ const Profile = () => {
             <div className="bg-barbershop-gray rounded-lg p-6">
               <h3 className="text-2xl font-bold text-white mb-4">Promeni lozinku</h3>
               <div className="space-y-3">
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
-                  placeholder="Trenutna lozinka"
-                />
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
-                  placeholder="Nova lozinka"
-                />
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full px-3 py-2 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
-                  placeholder="Potvrdi novu lozinku"
-                />
+                <div className="relative">
+                  <input
+                    type={showCurrentPassword ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-20 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
+                    placeholder="Trenutna lozinka"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-300 hover:text-white"
+                    aria-label={showCurrentPassword ? 'Sakrij trenutnu lozinku' : 'Prikaži trenutnu lozinku'}
+                  >
+                    {showCurrentPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-20 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
+                    placeholder="Nova lozinka"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-300 hover:text-white"
+                    aria-label={showNewPassword ? 'Sakrij novu lozinku' : 'Prikaži novu lozinku'}
+                  >
+                    {showNewPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 pr-20 bg-barbershop-dark border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-barbershop-gold"
+                    placeholder="Potvrdi novu lozinku"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-gray-300 hover:text-white"
+                    aria-label={showConfirmPassword ? 'Sakrij potvrdu nove lozinke' : 'Prikaži potvrdu nove lozinke'}
+                  >
+                    {showConfirmPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+                  </button>
+                </div>
                 <button
                   className="btn-secondary w-full disabled:opacity-50"
                   onClick={handlePasswordChange}
