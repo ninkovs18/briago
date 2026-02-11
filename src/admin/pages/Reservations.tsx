@@ -54,7 +54,7 @@ type FormState = {
 }
 
 const emptyForm: FormState = {
-  kind: 'user',
+  kind: 'guest',
   userId: '',
   serviceId: '',
   guestName: '',
@@ -159,12 +159,6 @@ const AdminReservationsPage = () => {
     return map
   }, [users])
 
-  const servicesById = useMemo(() => {
-    const map = new Map<string, ServiceDoc>()
-    services.forEach((s) => map.set(s.id, s))
-    return map
-  }, [services])
-
   const toDateTime = (date?: string, time?: string) => {
     if (!date || !time) return null
     if (time.includes('T')) {
@@ -183,13 +177,12 @@ const AdminReservationsPage = () => {
       const end = toDateTime(r.date, r.endTime) ?? addMinutes(start, r.durationMin ?? 60)
       const kind = r.kind ?? (r.userId ? 'user' : r.guestName ? 'guest' : 'break')
       const user = r.userId ? usersById.get(r.userId) : undefined
-      const service = r.serviceId ? servicesById.get(r.serviceId) : undefined
       const title =
         kind === 'break'
           ? 'Pauza'
           : kind === 'guest'
-            ? `${r.guestName || 'Guest'} · ${service?.name || 'Usluga'}`
-            : `${user?.fullName || user?.email || 'Korisnik'} · ${service?.name || 'Usluga'}`
+            ? (r.guestName || 'Guest')
+            : (user?.fullName || user?.email || 'Korisnik')
       return {
         id: r.id || `${r.userId || r.guestName || 'break'}-${r.startTime || 'time'}`,
         title,
@@ -198,14 +191,14 @@ const AdminReservationsPage = () => {
         color: kind === 'break' ? '#6b7280' : kind === 'guest' ? '#60a5fa' : '#3b82f6'
       }
     })
-  }, [reservations, servicesById, usersById])
+  }, [reservations, usersById])
 
   const openCreate = (dt: Date) => {
     setEditingId(null)
     setError(null)
     setForm({
       ...emptyForm,
-      kind: 'user',
+      kind: 'guest',
       date: format(dt, 'yyyy-MM-dd'),
       startTime: format(dt, 'HH:mm')
     })
@@ -447,13 +440,8 @@ const AdminReservationsPage = () => {
     }))
   }, [services])
 
-  const { minHour, maxHour } = useMemo(() => {
-    const openDays = Object.values(workingHours.days).filter((d) => d.isOpen)
-    if (openDays.length === 0) return { minHour: 8, maxHour: 20 }
-    const min = Math.min(...openDays.map((d) => Number(d.open.split(':')[0] || 0)))
-    const max = Math.max(...openDays.map((d) => Number(d.close.split(':')[0] || 24)))
-    return { minHour: min, maxHour: max }
-  }, [workingHours.days])
+  const minHour = 9
+  const maxHour = 20
 
   return (
     <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
@@ -503,8 +491,8 @@ const AdminReservationsPage = () => {
                   }
                   className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 >
-                  <option value="user">Korisnik</option>
                   <option value="guest">Guest</option>
+                  <option value="user">Korisnik</option>
                   <option value="break">Pauza</option>
                 </select>
               </div>
@@ -515,7 +503,7 @@ const AdminReservationsPage = () => {
                   type="date"
                   value={form.date}
                   onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
 
@@ -525,7 +513,7 @@ const AdminReservationsPage = () => {
                   type="time"
                   value={form.startTime}
                   onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
                 />
               </div>
 

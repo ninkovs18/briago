@@ -10,6 +10,77 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Space Grotesk', 'Roc Grotesk', 'Poppins', ui-sans-serif, system-ui, sans-serif;
   }
+
+  .admin-panel input[type='date'],
+  .admin-panel input[type='time'] {
+    display: block;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .admin-panel .native-datetime-input {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    inline-size: 100% !important;
+    max-inline-size: 100% !important;
+    min-inline-size: 0 !important;
+  }
+
+  .admin-panel input[type='date']::-webkit-date-and-time-value,
+  .admin-panel input[type='time']::-webkit-date-and-time-value {
+    text-align: left;
+  }
+
+  @media (max-width: 640px) {
+    .admin-panel input,
+    .admin-panel select,
+    .admin-panel textarea {
+      font-size: 16px !important;
+    }
+
+    .admin-panel input[type='date'],
+    .admin-panel input[type='time'] {
+      font-size: 16px;
+      line-height: 1.25;
+      min-height: 42px;
+    }
+
+    .admin-panel .native-datetime-input {
+      font-size: 16px;
+      line-height: 1.25;
+      min-height: 42px;
+      -webkit-appearance: none;
+      appearance: none;
+      padding-right: 0.75rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .admin-panel .native-datetime-input::-webkit-datetime-edit {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      padding: 0;
+    }
+
+    .admin-panel .native-datetime-input::-webkit-date-and-time-value {
+      min-width: 0;
+      text-align: left;
+    }
+
+    .admin-panel .native-datetime-input::-webkit-calendar-picker-indicator {
+      margin: 0;
+      padding: 0;
+      transform: scale(0.9);
+      transform-origin: right center;
+    }
+  }
 }
 
 @layer components {

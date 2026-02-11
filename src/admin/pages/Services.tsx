@@ -111,6 +111,7 @@ const AdminServicesPage = () => {
       if (selectedService) {
           setForm(selectedService);
           setEditingId(selectedService.id!);
+          setActiveTab('form');
       }
   }
 
