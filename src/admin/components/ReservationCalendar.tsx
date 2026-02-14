@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import {
   addDays,
   addMinutes,
@@ -27,6 +28,7 @@ export type ReservationCalendarProps = {
   stepMinutes?: number
   onPrevWeek?: () => void
   onNextWeek?: () => void
+  onCurrentWeek?: () => void
   onSlotClick?: (dt: Date) => void
   onEventClick?: (ev: CalendarEvent) => void
   onEventMove?: (ev: CalendarEvent, nextStart: Date, nextEnd: Date) => void
@@ -45,6 +47,7 @@ export default function ReservationCalendar({
   stepMinutes = 30,
   onPrevWeek,
   onNextWeek,
+  onCurrentWeek,
   onSlotClick,
   onEventClick,
   onEventMove,
@@ -52,6 +55,18 @@ export default function ReservationCalendar({
 }: ReservationCalendarProps) {
   const start = useMemo(() => startOfWeek(weekStart ?? new Date(), { weekStartsOn: 1 }), [weekStart])
   const days = useMemo(() => new Array(6).fill(0).map((_, i) => addDays(start, i)), [start])
+  const monthLabel = useMemo(() => {
+    const capitalizeFirst = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+    const monthKeys = new Set<string>()
+    const labels: string[] = []
+    for (const day of days) {
+      const key = format(day, 'yyyy-MM')
+      if (monthKeys.has(key)) continue
+      monthKeys.add(key)
+      labels.push(capitalizeFirst(format(day, 'LLLL yyyy', { locale: srLatn })))
+    }
+    return labels.join(' / ')
+  }, [days])
 
   const minutesPerDay = (maxHour - minHour) * 60
   const stepsPerDay = Math.ceil(minutesPerDay / stepMinutes)
@@ -203,12 +218,35 @@ export default function ReservationCalendar({
         }
       `}</style>
       <div className="flex flex-col gap-2 px-2 py-2 border-b border-[#E7ECEA] sm:flex-row sm:items-center sm:justify-between">
-        <div className="font-semibold text-sm sm:text-lg text-[#1F2937]">
-          {format(start, 'dd.MM.yyyy')} – {format(addDays(start, 6), 'dd.MM.yyyy')}
+        <div>
+          <div className="font-bold text-xl sm:text-3xl text-[#1F2937]">{monthLabel}</div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={onPrevWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">←</button>
-          <button type="button" onClick={onNextWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">→</button>
+        <div className="flex w-full items-center justify-between sm:w-auto sm:justify-end sm:gap-6">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onPrevWeek}
+              aria-label="Prethodna nedelja"
+              className="h-11 w-11 sm:h-12 sm:w-12 inline-flex items-center justify-center rounded-full border border-[#DCE3E1] bg-white text-[#1F2937] shadow-sm transition hover:bg-[#F3F6F5] hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080E53]/30"
+            >
+              <FiChevronLeft className="text-xl sm:text-2xl" />
+            </button>
+            <button
+              type="button"
+              onClick={onNextWeek}
+              aria-label="Sledeća nedelja"
+              className="h-11 w-11 sm:h-12 sm:w-12 inline-flex items-center justify-center rounded-full border border-[#DCE3E1] bg-white text-[#1F2937] shadow-sm transition hover:bg-[#F3F6F5] hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080E53]/30"
+            >
+              <FiChevronRight className="text-xl sm:text-2xl" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onCurrentWeek}
+            className="h-11 px-4 sm:h-12 sm:px-5 inline-flex items-center justify-center rounded-full border border-[#DCE3E1] bg-white text-sm sm:text-base font-semibold text-[#1F2937] shadow-sm transition hover:bg-[#F3F6F5] hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080E53]/30"
+          >
+            Trenutna nedelja
+          </button>
         </div>
       </div>
 

@@ -457,14 +457,15 @@ const AdminReservationsPage = () => {
             events={events}
             onPrevWeek={() => setWeekStart(addMinutes(weekStart, -7 * 24 * 60))}
             onNextWeek={() => setWeekStart(addMinutes(weekStart, 7 * 24 * 60))}
+            onCurrentWeek={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
             onSlotClick={openCreate}
-          onEventClick={openEdit}
-          onEventMove={moveReservation}
-          minHour={minHour}
-          maxHour={maxHour}
-          stepMinutes={30}
-          highlightEventId={highlightId}
-        />
+            onEventClick={openEdit}
+            onEventMove={moveReservation}
+            minHour={minHour}
+            maxHour={maxHour}
+            stepMinutes={30}
+            highlightEventId={highlightId}
+          />
         </div>
       </div>
 
