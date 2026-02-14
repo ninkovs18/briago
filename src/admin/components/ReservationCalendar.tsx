@@ -267,8 +267,8 @@ export default function ReservationCalendar({
           <div />
           {days.map((d) => (
             <div key={d.toISOString()} className="px-0.5 py-1 text-center border-l first:border-l-0 border-[#E7ECEA]">
-              <div className="uppercase text-[9px] text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
-              <div className="text-base font-semibold text-[#111827]">{format(d, 'd', { locale: srLatn })}</div>
+              <div className="uppercase text-[11px] sm:text-xs font-semibold text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
+              <div className="text-lg sm:text-xl font-bold text-[#111827] leading-tight">{format(d, 'd', { locale: srLatn })}</div>
             </div>
           ))}
 
@@ -280,7 +280,7 @@ export default function ReservationCalendar({
               const label = mm === 0 ? `${String(hh).padStart(2, '0')}:00` : ''
               return (
                 <div key={i} className="absolute left-0 right-0" style={{ top: i * STEP_HEIGHT - 8 }}>
-                  <div className="text-[9px] text-gray-500 pl-0.5">{label}</div>
+                  <div className="pl-0.5 text-[11px] sm:text-xs font-semibold text-gray-600">{label}</div>
                 </div>
               )
             })}
