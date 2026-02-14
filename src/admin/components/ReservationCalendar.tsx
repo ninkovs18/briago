@@ -231,7 +231,7 @@ export default function ReservationCalendar({
       const rect = popoverEl.getBoundingClientRect()
       const bottomOverflow = rect.bottom - (window.innerHeight - 8)
       if (bottomOverflow > 0) {
-        window.scrollBy({ top: bottomOverflow + 12, behavior: 'smooth' })
+        window.scrollBy({ top: bottomOverflow + 12, behavior: 'auto' })
       }
     })
     return () => window.cancelAnimationFrame(raf)
