@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FiChevronLeft, FiChevronRight } from 'react-icons/fi'
 import {
   addDays,
   addMinutes,
@@ -25,8 +26,11 @@ export type ReservationCalendarProps = {
   minHour?: number
   maxHour?: number
   stepMinutes?: number
+  selectedDate?: Date | null
+  createPopover?: React.ReactNode
   onPrevWeek?: () => void
   onNextWeek?: () => void
+  onCurrentWeek?: () => void
   onSlotClick?: (dt: Date) => void
   onEventClick?: (ev: CalendarEvent) => void
   onEventMove?: (ev: CalendarEvent, nextStart: Date, nextEnd: Date) => void
@@ -43,8 +47,11 @@ export default function ReservationCalendar({
   minHour = 8,
   maxHour = 20,
   stepMinutes = 30,
+  selectedDate,
+  createPopover,
   onPrevWeek,
   onNextWeek,
+  onCurrentWeek,
   onSlotClick,
   onEventClick,
   onEventMove,
@@ -52,14 +59,43 @@ export default function ReservationCalendar({
 }: ReservationCalendarProps) {
   const start = useMemo(() => startOfWeek(weekStart ?? new Date(), { weekStartsOn: 1 }), [weekStart])
   const days = useMemo(() => new Array(6).fill(0).map((_, i) => addDays(start, i)), [start])
+  const selectedDayIdx = useMemo(
+    () => (selectedDate ? days.findIndex((day) => isSameDay(day, selectedDate)) : -1),
+    [days, selectedDate]
+  )
+  const monthLabel = useMemo(() => {
+    const capitalizeFirst = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
+    const monthKeys = new Set<string>()
+    const labels: string[] = []
+    for (const day of days) {
+      const key = format(day, 'yyyy-MM')
+      if (monthKeys.has(key)) continue
+      monthKeys.add(key)
+      labels.push(capitalizeFirst(format(day, 'LLLL yyyy', { locale: srLatn })))
+    }
+    return labels.join(' / ')
+  }, [days])
 
   const minutesPerDay = (maxHour - minHour) * 60
   const stepsPerDay = Math.ceil(minutesPerDay / stepMinutes)
   const columnHeight = stepsPerDay * STEP_HEIGHT
+  const selectedSlot = useMemo(() => {
+    if (!selectedDate || selectedDayIdx < 0) return null
+    const minutesFromTop = selectedDate.getHours() * 60 + selectedDate.getMinutes() - minHour * 60
+    const slotIdx = Math.max(0, Math.min(stepsPerDay - 1, Math.floor(minutesFromTop / stepMinutes)))
+    return { dayIdx: selectedDayIdx, slotIdx }
+  }, [selectedDate, selectedDayIdx, minHour, stepMinutes, stepsPerDay])
 
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const popoverRef = useRef<HTMLDivElement | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
+  const [popoverPosition, setPopoverPosition] = useState<{
+    left: number
+    top: number
+    width: number
+    arrowLeft: number
+  } | null>(null)
   const draggingRef = useRef(false)
   const dragStartRef = useRef<{ id: string; x: number; y: number } | null>(null)
 
@@ -151,6 +187,56 @@ export default function ReservationCalendar({
     }
   }, [draggingId, handlePointerMove, handlePointerUp])
 
+  useEffect(() => {
+    const updatePopoverPosition = () => {
+      if (!createPopover || !selectedSlot) {
+        setPopoverPosition(null)
+        return
+      }
+      const slotEl = containerRef.current?.querySelector(
+        `[data-day="${selectedSlot.dayIdx}"][data-slot="${selectedSlot.slotIdx}"]`
+      ) as HTMLElement | null
+      if (!slotEl) {
+        setPopoverPosition(null)
+        return
+      }
+      const rect = slotEl.getBoundingClientRect()
+      const width = Math.min(360, window.innerWidth - 16)
+      const minLeft = 8
+      const maxLeft = Math.max(minLeft, window.innerWidth - width - 8)
+      const idealLeft = rect.left + rect.width / 2 - width / 2
+      const left = Math.min(maxLeft, Math.max(minLeft, idealLeft))
+      const top = rect.bottom + 10
+      const arrowLeft = Math.max(16, Math.min(width - 24, rect.left + rect.width / 2 - left - 8))
+      setPopoverPosition({ left, top, width, arrowLeft })
+    }
+
+    updatePopoverPosition()
+    const container = containerRef.current
+    window.addEventListener('resize', updatePopoverPosition)
+    window.addEventListener('scroll', updatePopoverPosition, true)
+    container?.addEventListener('scroll', updatePopoverPosition)
+    return () => {
+      window.removeEventListener('resize', updatePopoverPosition)
+      window.removeEventListener('scroll', updatePopoverPosition, true)
+      container?.removeEventListener('scroll', updatePopoverPosition)
+    }
+  }, [createPopover, selectedSlot])
+
+  useEffect(() => {
+    if (!createPopover || !popoverPosition) return
+    const raf = window.requestAnimationFrame(() => {
+      const popoverEl = popoverRef.current
+      if (!popoverEl) return
+      const rect = popoverEl.getBoundingClientRect()
+      const bottomOverflow = rect.bottom - (window.innerHeight - 8)
+      if (bottomOverflow > 0) {
+        window.scrollBy({ top: bottomOverflow + 12, behavior: 'auto' })
+      }
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [createPopover, popoverPosition])
+
   const renderEvent = (ev: CalendarEvent, dayIdx: number) => {
     const columnTop = setHours(setMinutes(addDays(start, dayIdx), 0), minHour)
     const startMinutes = differenceInMinutes(ev.start, columnTop)
@@ -203,19 +289,41 @@ export default function ReservationCalendar({
         }
       `}</style>
       <div className="flex flex-col gap-2 px-2 py-2 border-b border-[#E7ECEA] sm:flex-row sm:items-center sm:justify-between">
-        <div className="font-semibold text-sm sm:text-lg text-[#1F2937]">
-          {format(start, 'dd.MM.yyyy')} – {format(addDays(start, 6), 'dd.MM.yyyy')}
+        <div>
+          <div className="font-bold text-xl sm:text-3xl text-[#1F2937]">{monthLabel}</div>
         </div>
-        <div className="flex gap-2">
-          <button type="button" onClick={onPrevWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">←</button>
-          <button type="button" onClick={onNextWeek} className="px-2 py-1 text-xs rounded border border-[#DCE3E1] bg-white">→</button>
+        <div className="flex w-full items-center justify-between sm:w-auto sm:justify-end sm:gap-6">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onPrevWeek}
+              aria-label="Prethodna nedelja"
+              className="h-11 w-11 sm:h-12 sm:w-12 inline-flex items-center justify-center rounded-full border border-[#DCE3E1] bg-white text-[#1F2937] shadow-sm transition hover:bg-[#F3F6F5] hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080E53]/30"
+            >
+              <FiChevronLeft className="text-xl sm:text-2xl" />
+            </button>
+            <button
+              type="button"
+              onClick={onNextWeek}
+              aria-label="Sledeća nedelja"
+              className="h-11 w-11 sm:h-12 sm:w-12 inline-flex items-center justify-center rounded-full border border-[#DCE3E1] bg-white text-[#1F2937] shadow-sm transition hover:bg-[#F3F6F5] hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080E53]/30"
+            >
+              <FiChevronRight className="text-xl sm:text-2xl" />
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={onCurrentWeek}
+            className="h-11 px-4 sm:h-12 sm:px-5 inline-flex items-center justify-center rounded-full border border-[#DCE3E1] bg-white text-sm sm:text-base font-semibold text-[#1F2937] shadow-sm transition hover:bg-[#F3F6F5] hover:shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#080E53]/30"
+          >
+            Trenutna nedelja
+          </button>
         </div>
       </div>
-
       <div
         ref={containerRef}
         className="relative overflow-x-auto overflow-y-auto"
-        style={{ maxHeight: 700 }}
+        style={{ maxHeight: '78vh' }}
         onPointerUp={() => {
           if (!draggingRef.current) {
             dragStartRef.current = null
@@ -228,9 +336,9 @@ export default function ReservationCalendar({
         >
           <div />
           {days.map((d) => (
-            <div key={d.toISOString()} className="px-0.5 py-1 text-center border-l first:border-l-0 border-[#E7ECEA]">
-              <div className="uppercase text-[9px] text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
-              <div className="text-base font-semibold text-[#111827]">{format(d, 'd', { locale: srLatn })}</div>
+            <div key={d.toISOString()} className="px-0.5 py-1 text-center border-l first:border-l-0 border-[#E7ECEA] transition">
+              <div className="uppercase text-[11px] sm:text-xs font-semibold text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
+              <div className="text-lg sm:text-xl font-bold text-[#111827] leading-tight">{format(d, 'd', { locale: srLatn })}</div>
             </div>
           ))}
 
@@ -242,7 +350,7 @@ export default function ReservationCalendar({
               const label = mm === 0 ? `${String(hh).padStart(2, '0')}:00` : ''
               return (
                 <div key={i} className="absolute left-0 right-0" style={{ top: i * STEP_HEIGHT - 8 }}>
-                  <div className="text-[9px] text-gray-500 pl-0.5">{label}</div>
+                  <div className="pl-0.5 text-[11px] sm:text-xs font-semibold text-gray-600">{label}</div>
                 </div>
               )
             })}
@@ -260,7 +368,13 @@ export default function ReservationCalendar({
                   key={i}
                   data-day={dayIdx}
                   data-slot={i}
-                  className={`absolute left-1 right-1 rounded-md ${hoverSlot?.dayIdx === dayIdx && hoverSlot?.slotIdx === i ? 'bg-blue-100' : 'bg-[#EEF3F2]'}`}
+                  className={`absolute left-1 right-1 rounded-md ${
+                    selectedSlot?.dayIdx === dayIdx && selectedSlot.slotIdx === i
+                      ? 'bg-blue-100 ring-2 ring-blue-500'
+                      : hoverSlot?.dayIdx === dayIdx && hoverSlot?.slotIdx === i
+                        ? 'bg-blue-100'
+                        : 'bg-[#EEF3F2]'
+                  }`}
                   style={{ top: i * STEP_HEIGHT + 2, height: STEP_HEIGHT - 4 }}
                 />
               ))}
@@ -269,6 +383,22 @@ export default function ReservationCalendar({
           ))}
         </div>
       </div>
+      {createPopover && popoverPosition && (
+        <div className="fixed inset-0 z-40 pointer-events-none">
+          <div
+            ref={popoverRef}
+            className="absolute pointer-events-auto rounded-lg border-2 border-blue-300 bg-white p-3 shadow-lg"
+            style={{ top: popoverPosition.top, left: popoverPosition.left, width: popoverPosition.width }}
+          >
+            <div
+              className="pointer-events-none absolute -top-[9px] h-4 w-4 rotate-45 border-l-2 border-t-2 border-blue-300 bg-white"
+              style={{ left: popoverPosition.arrowLeft }}
+            />
+            {createPopover}
+          </div>
+        </div>
+      )}
+      {createPopover && <div style={{ height: 520 }} />}
     </div>
   )
 }
