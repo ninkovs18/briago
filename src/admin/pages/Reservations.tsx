@@ -10,6 +10,7 @@ import {
   where
 } from 'firebase/firestore'
 import { addMinutes, differenceInMinutes, format, startOfWeek } from 'date-fns'
+import { srLatn } from 'date-fns/locale'
 import { db } from '../../firebase'
 import ReservationCalendar, { CalendarEvent } from '../components/ReservationCalendar'
 import {
@@ -25,6 +26,7 @@ export type ReservationDoc = {
   id?: string
   userId?: string | null
   serviceId?: string | null
+  cardColor?: string | null
   kind?: 'user' | 'guest' | 'break'
   guestName?: string
   date?: string
@@ -41,22 +43,30 @@ type UserDoc = {
   verified?: boolean
 }
 
-type ServiceDoc = { id: string; name: string; duration?: number }
-
 type FormState = {
   kind: 'user' | 'guest' | 'break'
   userId: string
   serviceId: string
+  cardColor: string
   guestName: string
   date: string
   startTime: string
   duration: '30' | '60'
 }
 
+const USER_CARD_COLORS = ['#3b82f6', '#10b981', '#f97316', '#a855f7'] as const
+const GUEST_CARD_COLORS = ['#93c5fd', '#10b981', '#f97316', '#a855f7'] as const
+const DEFAULT_COLOR_BY_KIND = {
+  user: USER_CARD_COLORS[0],
+  guest: GUEST_CARD_COLORS[0],
+  break: '#6b7280'
+} as const
+
 const emptyForm: FormState = {
   kind: 'guest',
   userId: '',
   serviceId: '',
+  cardColor: DEFAULT_COLOR_BY_KIND.guest,
   guestName: '',
   date: '',
   startTime: '',
@@ -66,7 +76,6 @@ const emptyForm: FormState = {
 const AdminReservationsPage = () => {
   const [reservations, setReservations] = useState<ReservationDoc[]>([])
   const [users, setUsers] = useState<UserDoc[]>([])
-  const [services, setServices] = useState<ServiceDoc[]>([])
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date(), { weekStartsOn: 1 }))
   const [modalOpen, setModalOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -134,15 +143,6 @@ const AdminReservationsPage = () => {
   }, [])
 
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'services'), (snap) => {
-      const list: ServiceDoc[] = []
-      snap.forEach((d) => list.push({ ...(d.data() as Omit<ServiceDoc, 'id'>), id: d.id }))
-      setServices(list)
-    })
-    return unsub
-  }, [])
-
-  useEffect(() => {
     const unsub = onSnapshot(doc(db, 'settings', 'workingHours'), (snap) => {
       if (snap.exists()) {
         setWorkingHours(normalizeWorkingHours(snap.data() as WorkingHours))
@@ -188,7 +188,7 @@ const AdminReservationsPage = () => {
         title,
         start,
         end,
-        color: kind === 'break' ? '#6b7280' : kind === 'guest' ? '#60a5fa' : '#3b82f6'
+        color: r.cardColor || DEFAULT_COLOR_BY_KIND[kind]
       }
     })
   }, [reservations, usersById])
@@ -199,6 +199,7 @@ const AdminReservationsPage = () => {
     setForm({
       ...emptyForm,
       kind: 'guest',
+      cardColor: DEFAULT_COLOR_BY_KIND.guest,
       date: format(dt, 'yyyy-MM-dd'),
       startTime: format(dt, 'HH:mm')
     })
@@ -217,6 +218,7 @@ const AdminReservationsPage = () => {
       kind,
       userId: res.userId || '',
       serviceId: res.serviceId || '',
+      cardColor: res.cardColor || ev.color || DEFAULT_COLOR_BY_KIND[kind],
       guestName: res.guestName || '',
       date: format(start, 'yyyy-MM-dd'),
       startTime: format(start, 'HH:mm'),
@@ -237,10 +239,6 @@ const AdminReservationsPage = () => {
       setError('Popunite sva obavezna polja.')
       return
     }
-    if (form.kind !== 'break' && !form.serviceId) {
-      setError('Izaberite uslugu.')
-      return
-    }
     if (form.kind === 'user' && !form.userId) {
       setError('Izaberite korisnika.')
       return
@@ -257,20 +255,23 @@ const AdminReservationsPage = () => {
       const end = addMinutes(start, duration)
       const expireAtDate = new Date(`${form.date}T00:00:00`)
       expireAtDate.setDate(expireAtDate.getDate() + 90)
-      if (isDateInVacation(start, workingHours)) {
-        setError('Salon je na odmoru u izabranom periodu.')
-        return
-      }
-      const dayConfig = getDayConfig(start, workingHours)
-      if (!isWithinWorkingHours(dayConfig, format(start, 'HH:mm'), duration)) {
-        setError('Termin je van radnog vremena.')
-        return
+      if (editingId) {
+        if (isDateInVacation(start, workingHours)) {
+          setError('Salon je na odmoru u izabranom periodu.')
+          return
+        }
+        const dayConfig = getDayConfig(start, workingHours)
+        if (!isWithinWorkingHours(dayConfig, format(start, 'HH:mm'), duration)) {
+          setError('Termin je van radnog vremena.')
+          return
+        }
       }
       const payload = {
         kind: form.kind,
         userId: form.kind === 'user' ? form.userId : null,
         guestName: form.kind === 'guest' ? form.guestName.trim() : null,
-        serviceId: form.kind === 'break' ? null : form.serviceId,
+        serviceId: form.kind === 'break' ? null : (form.serviceId || null),
+        cardColor: form.kind === 'break' ? DEFAULT_COLOR_BY_KIND.break : (form.cardColor || null),
         date: format(start, 'yyyy-MM-dd'),
         startTime: format(start, 'HH:mm'),
         endTime: format(end, 'HH:mm'),
@@ -433,15 +434,153 @@ const AdminReservationsPage = () => {
     return userOptions.filter((u) => u.label.toLowerCase().includes(q))
   }, [userOptions, userQuery])
 
-  const serviceOptions = useMemo(() => {
-    return services.map((s) => ({
-      id: s.id,
-      label: s.name
-    }))
-  }, [services])
-
   const minHour = 9
   const maxHour = 20
+  const createSlotInfo = useMemo(() => {
+    if (editingId || !form.date || !form.startTime) return ''
+    const dt = new Date(`${form.date}T${form.startTime}`)
+    if (Number.isNaN(dt.getTime())) return `${form.date} u ${form.startTime}`
+    const label = format(dt, "EEEE, d. MMMM 'u' HH:mm", { locale: srLatn })
+    return label.charAt(0).toUpperCase() + label.slice(1)
+  }, [editingId, form.date, form.startTime])
+  const selectedCreateDate = useMemo(() => {
+    if (!modalOpen || editingId || !form.date) return null
+    const dt = new Date(`${form.date}T${form.startTime || '00:00'}`)
+    return Number.isNaN(dt.getTime()) ? null : dt
+  }, [modalOpen, editingId, form.date, form.startTime])
+  const selectableCardColors = form.kind === 'user' ? USER_CARD_COLORS : GUEST_CARD_COLORS
+  const createPopover = modalOpen && !editingId ? (
+    <div className="mx-auto w-full max-w-md">
+      <h3 className="text-lg font-semibold text-gray-900">{createSlotInfo || 'Novi termin'}</h3>
+
+      <div className="mt-3 space-y-3">
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Tip *</label>
+          <select
+            value={form.kind}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                kind: e.target.value as FormState['kind'],
+                userId: e.target.value === 'user' ? form.userId : '',
+                guestName: e.target.value === 'guest' ? form.guestName : '',
+                serviceId: e.target.value === 'break' ? '' : form.serviceId,
+                cardColor: DEFAULT_COLOR_BY_KIND[e.target.value as FormState['kind']]
+              })
+            }
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="guest">Guest</option>
+            <option value="user">Korisnik</option>
+            <option value="break">Pauza</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Trajanje *</label>
+          <select
+            value={form.duration}
+            onChange={(e) => setForm({ ...form, duration: e.target.value as FormState['duration'] })}
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+          >
+            <option value="30">30 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+        {form.kind !== 'break' && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-2">Boja kartice</label>
+            <div className="flex items-center gap-2">
+              {selectableCardColors.map((color) => {
+                const active = form.cardColor === color
+                return (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setForm({ ...form, cardColor: color })}
+                    className={`h-7 w-7 rounded-full border-2 transition ${active ? 'border-[#111827] scale-110' : 'border-white/40'}`}
+                    style={{ backgroundColor: color }}
+                    aria-label={`Boja ${color}`}
+                    title={color}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {form.kind === 'user' && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Korisnik *</label>
+            <Combobox
+              value={selectedUser}
+              onChange={(u) => {
+                setForm({ ...form, userId: u?.id ?? '' })
+                setUserQuery('')
+              }}
+            >
+              <div className="relative">
+                <Combobox.Input
+                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                  displayValue={(u: { id: string; label: string } | null) => u?.label ?? ''}
+                  onChange={(e) => {
+                    setUserQuery(e.target.value)
+                    if (form.userId) setForm({ ...form, userId: '' })
+                  }}
+                  placeholder="Izaberi korisnika"
+                />
+                <Combobox.Options className="absolute z-10 mt-1 max-h-56 w-full overflow-auto rounded border border-gray-200 bg-white text-sm shadow-lg">
+                  {filteredUserOptions.length === 0 ? (
+                    <div className="px-3 py-2 text-gray-500">Nema rezultata</div>
+                  ) : (
+                    filteredUserOptions.map((u) => (
+                      <Combobox.Option
+                        key={u.id}
+                        value={u}
+                        className={({ active }) =>
+                          `cursor-pointer px-3 py-2 ${active ? 'bg-blue-50 text-blue-700' : 'text-gray-700'}`
+                        }
+                      >
+                        {u.label}
+                      </Combobox.Option>
+                    ))
+                  )}
+                </Combobox.Options>
+              </div>
+            </Combobox>
+          </div>
+        )}
+
+        {form.kind === 'guest' && (
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Ime gosta *</label>
+            <input
+              type="text"
+              value={form.guestName}
+              onChange={(e) => setForm({ ...form, guestName: e.target.value })}
+              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Ime i prezime / nadimak"
+            />
+          </div>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+      </div>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <button onClick={closeModal} className="px-3 py-2 rounded border" disabled={saving}>
+          Nazad
+        </button>
+        <button
+          onClick={saveReservation}
+          disabled={saving}
+          className="px-3 py-2 rounded bg-[#1F50FF] text-white"
+        >
+          {saving ? 'Čuvanje...' : 'Sačuvaj'}
+        </button>
+      </div>
+    </div>
+  ) : null
 
   return (
     <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
@@ -455,9 +594,20 @@ const AdminReservationsPage = () => {
           <ReservationCalendar
             weekStart={weekStart}
             events={events}
-            onPrevWeek={() => setWeekStart(addMinutes(weekStart, -7 * 24 * 60))}
-            onNextWeek={() => setWeekStart(addMinutes(weekStart, 7 * 24 * 60))}
-            onCurrentWeek={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+            selectedDate={selectedCreateDate}
+            createPopover={createPopover}
+            onPrevWeek={() => {
+              if (modalOpen && !editingId) closeModal()
+              setWeekStart(addMinutes(weekStart, -7 * 24 * 60))
+            }}
+            onNextWeek={() => {
+              if (modalOpen && !editingId) closeModal()
+              setWeekStart(addMinutes(weekStart, 7 * 24 * 60))
+            }}
+            onCurrentWeek={() => {
+              if (modalOpen && !editingId) closeModal()
+              setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))
+            }}
             onSlotClick={openCreate}
             onEventClick={openEdit}
             onEventMove={moveReservation}
@@ -469,12 +619,10 @@ const AdminReservationsPage = () => {
         </div>
       </div>
 
-      {modalOpen && (
+      {modalOpen && editingId && (
         <div className="fixed inset-0 z-30 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
-            <h3 className="text-lg font-semibold text-gray-900">
-              {editingId ? 'Izmeni termin' : 'Novi termin'}
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900">Izmeni termin</h3>
 
             <div className="mt-4 space-y-3">
               <div>
@@ -487,7 +635,8 @@ const AdminReservationsPage = () => {
                       kind: e.target.value as FormState['kind'],
                       userId: e.target.value === 'user' ? form.userId : '',
                       guestName: e.target.value === 'guest' ? form.guestName : '',
-                      serviceId: e.target.value === 'break' ? '' : form.serviceId
+                      serviceId: e.target.value === 'break' ? '' : form.serviceId,
+                      cardColor: DEFAULT_COLOR_BY_KIND[e.target.value as FormState['kind']]
                     })
                   }
                   className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
@@ -498,25 +647,29 @@ const AdminReservationsPage = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Datum *</label>
-                <input
-                  type="date"
-                  value={form.date}
-                  onChange={(e) => setForm({ ...form, date: e.target.value })}
-                  className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
+              {editingId ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Datum *</label>
+                    <input
+                      type="date"
+                      value={form.date}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                      className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-600 mb-1">Vreme početka *</label>
-                <input
-                  type="time"
-                  value={form.startTime}
-                  onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                  className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">Vreme početka *</label>
+                    <input
+                      type="time"
+                      value={form.startTime}
+                      onChange={(e) => setForm({ ...form, startTime: e.target.value })}
+                      className="native-datetime-input w-full min-w-0 max-w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                    />
+                  </div>
+                </>
+              ) : null}
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1">Trajanje *</label>
@@ -582,22 +735,6 @@ const AdminReservationsPage = () => {
                     className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
                     placeholder="Ime i prezime / nadimak"
                   />
-                </div>
-              )}
-
-              {form.kind !== 'break' && (
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Usluga *</label>
-                  <select
-                    value={form.serviceId}
-                    onChange={(e) => setForm({ ...form, serviceId: e.target.value })}
-                    className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  >
-                    <option value="">Izaberi uslugu</option>
-                    {serviceOptions.map((s) => (
-                      <option key={s.id} value={s.id}>{s.label}</option>
-                    ))}
-                  </select>
                 </div>
               )}
 
