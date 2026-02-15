@@ -62,8 +62,7 @@ const AdminSettingsPage = () => {
 
   return (
     <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Podešavanja</h1>
+      <div className="mb-6 flex justify-end">
         <button
           onClick={save}
           disabled={!canSave}

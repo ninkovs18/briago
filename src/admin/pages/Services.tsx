@@ -129,10 +129,7 @@ const AdminServicesPage = () => {
 
   // --- RENDERING KOMPONENTE ---
   return (
-    <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
-      
-      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-800">Usluge</h1>
-
+    <div className="h-full min-h-0 box-border p-2 sm:p-6 md:p-8 bg-gray-50 flex flex-col overflow-hidden">
       {/* Tabs (mobile only) */}
       <div className="mb-3 flex gap-2 sm:hidden">
         <button
@@ -153,29 +150,29 @@ const AdminServicesPage = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         
         {/* TABELA KONTEJNER (lg:col-span-2) */}
-        <div className={`lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden ${activeTab !== 'list' ? 'hidden sm:block' : ''}`}>
+        <div className={`lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden min-h-0 flex flex-col ${activeTab !== 'list' ? 'hidden sm:flex' : 'flex'}`}>
           
-          <div className="p-3 sm:p-4">
+          <div className="p-3 sm:p-4 min-h-0 flex flex-col">
               
               {/* ZAGLAVLJE TABELE SA AKCIJAMA */}
               <div className="flex flex-col gap-3 mb-3 sm:mb-4 sm:flex-row sm:items-center sm:gap-4"> 
                   <h2 className="font-semibold text-base sm:text-lg whitespace-nowrap">Postojeće usluge</h2> 
                   
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
                       <button
                           onClick={startEditing}
                           disabled={!selectedServiceId || editingId !== null || loading}
-                          className="text-[11px] sm:text-sm px-3 py-1 rounded font-semibold bg-[#1F50FF] text-white disabled:opacity-50 transition duration-150 w-full sm:w-auto"
+                          className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-[#1F50FF] text-white disabled:opacity-50 transition duration-150"
                       >
                           Izmeni
                       </button>
                       <button
                           onClick={deleteSelected}
                           disabled={!selectedServiceId || loading}
-                          className="text-[11px] sm:text-sm px-3 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150 w-full sm:w-auto"
+                          className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150"
                       >
                           Obriši
                       </button>
@@ -183,9 +180,9 @@ const AdminServicesPage = () => {
               </div>
 
               {/* Tabela */}
-              <div className="overflow-x-auto">
-                <div className="max-h-[240px] sm:max-h-[260px] overflow-y-auto">
-                  <table className="min-w-[360px] w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div className="h-full overflow-y-auto overflow-x-hidden">
+                  <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
                     <thead className="bg-gray-50 text-gray-600 uppercase tracking-wide text-xs">
                       <tr className="text-left border-b border-gray-200 divide-x divide-gray-200">
                         <th className="py-3 px-2 sm:px-3">Naziv</th>
