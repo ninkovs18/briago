@@ -322,8 +322,7 @@ export default function ReservationCalendar({
       </div>
       <div
         ref={containerRef}
-        className="relative overflow-x-auto overflow-y-auto"
-        style={{ maxHeight: '78vh' }}
+        className="relative overflow-x-auto"
         onPointerUp={() => {
           if (!draggingRef.current) {
             dragStartRef.current = null
