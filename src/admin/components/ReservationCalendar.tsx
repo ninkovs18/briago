@@ -86,7 +86,9 @@ export default function ReservationCalendar({
     return { dayIdx: selectedDayIdx, slotIdx }
   }, [selectedDate, selectedDayIdx, minHour, stepMinutes, stepsPerDay])
 
+  const rootRef = useRef<HTMLDivElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const [calendarMaxHeight, setCalendarMaxHeight] = useState<number>(0)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
@@ -188,6 +190,24 @@ export default function ReservationCalendar({
   }, [draggingId, handlePointerMove, handlePointerUp])
 
   useEffect(() => {
+    const updateCalendarHeight = () => {
+      const el = rootRef.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top
+      const next = Math.max(320, Math.floor(window.innerHeight - top - 8))
+      setCalendarMaxHeight(next)
+    }
+
+    updateCalendarHeight()
+    window.addEventListener('resize', updateCalendarHeight)
+    window.addEventListener('scroll', updateCalendarHeight, true)
+    return () => {
+      window.removeEventListener('resize', updateCalendarHeight)
+      window.removeEventListener('scroll', updateCalendarHeight, true)
+    }
+  }, [])
+
+  useEffect(() => {
     const updatePopoverPosition = () => {
       if (!createPopover || !selectedSlot) {
         setPopoverPosition(null)
@@ -281,7 +301,10 @@ export default function ReservationCalendar({
   }
 
   return (
-    <div className="w-full bg-[#F6F8F7] border border-[#E7ECEA] rounded-lg">
+    <div
+      ref={rootRef}
+      className="w-full bg-[#F6F8F7] border border-[#E7ECEA] rounded-lg"
+    >
       <style>{`
         @keyframes pulseRed {
           0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
@@ -323,7 +346,7 @@ export default function ReservationCalendar({
       <div
         ref={containerRef}
         className="relative overflow-x-auto overflow-y-auto"
-        style={{ maxHeight: '78vh' }}
+        style={{ height: calendarMaxHeight > 0 ? `${calendarMaxHeight}px` : '78vh' }}
         onPointerUp={() => {
           if (!draggingRef.current) {
             dragStartRef.current = null

@@ -712,11 +712,7 @@ const AdminReservationsPage = () => {
     ) : null;
 
   return (
-    <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
-      <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-800">
-        Rezervacije
-      </h1>
-
+    <div className="px-2 pb-2 pt-0 sm:px-6 sm:pb-6 sm:pt-2 md:px-8 md:pb-8 md:pt-3 bg-gray-50 min-h-screen">
       <div className="-mx-2 sm:mx-0">
         <div className="bg-white rounded-none sm:rounded-lg border border-gray-100 shadow-lg p-0 sm:p-2">
           {loadingReservations && (

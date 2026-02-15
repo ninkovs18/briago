@@ -193,7 +193,7 @@ const AdminUsersPage = () => {
   // --- RENDERING KOMPONENTE ---
   return (
     // Glavni kontejner sa paddingom i pozadinom
-    <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+    <div className="h-full min-h-0 box-border p-2 sm:p-6 md:p-8 bg-gray-50 flex flex-col overflow-hidden">
       
       <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-800">Korisnici</h1>
 
@@ -226,14 +226,14 @@ const AdminUsersPage = () => {
       </div>
 
       {/* Grid za responsivnost: 1 kolona na mobilnom, 3 kolone na desktopu */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         
         {/* TABELA KONTEJNER - Zauzima 2/3 širine na desktopu */}
-        <div className={`lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden ${activeTab === 'form' ? 'hidden sm:block' : ''}`}>
+        <div className={`lg:col-span-2 bg-white shadow-lg border border-gray-100 rounded-lg overflow-hidden min-h-0 flex flex-col ${activeTab === 'form' ? 'hidden sm:flex' : 'flex'}`}>
           
-          <div className="p-3 sm:p-4">
+          <div className="p-3 sm:p-4 min-h-0 flex flex-col">
               {/* Pending sub-tabs */}
-              <div className={`mb-4 sm:mb-6 ${activeTab === 'list' ? 'hidden sm:block' : ''}`}>
+              <div className={`mb-4 sm:mb-6 min-h-0 flex-1 overflow-hidden flex flex-col ${activeTab === 'list' ? 'hidden sm:flex' : 'flex'}`}>
                 <div className="mb-3 flex flex-wrap gap-2">
                   <button
                     onClick={() => setPendingTab('pending')}
@@ -257,8 +257,9 @@ const AdminUsersPage = () => {
                   </button>
                 </div>
 
+                <div className="flex-1 min-h-0 overflow-hidden">
                 {pendingTab === 'pending' && (
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4 min-h-0 h-full flex flex-col">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
                       <h2 className="font-semibold text-sm sm:text-lg text-gray-900">Korisnici na čekanju verifikacije</h2>
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
@@ -268,7 +269,7 @@ const AdminUsersPage = () => {
                     {pendingUsers.length === 0 ? (
                       <p className="text-sm text-gray-500">Nema korisnika koji čekaju verifikaciju.</p>
                     ) : (
-                      <div className="max-h-[260px] overflow-y-auto pr-1">
+                      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                         <div className="space-y-2">
                           {pendingUsers.map((u) => (
                             <div key={u.id} className="flex flex-col gap-3 rounded border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -277,18 +278,18 @@ const AdminUsersPage = () => {
                                 <div className="text-xs text-gray-500">{u.fullName || '—'}</div>
                                 <div className="text-xs text-gray-500">{u.phone || '—'}</div>
                               </div>
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <div className="flex flex-wrap items-center justify-center gap-2">
                                 <button
                                   onClick={() => verifyUser(u.id)}
                                   disabled={loading}
-                                  className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-green-600 text-white disabled:opacity-50 w-full sm:w-auto"
+                                  className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-green-600 text-white disabled:opacity-50 transition duration-150"
                                 >
                                   Verifikuj
                                 </button>
                                 <button
                               onClick={() => requestDeleteUser(u.id)}
                                   disabled={loading}
-                                  className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 w-full sm:w-auto"
+                                  className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150"
                                 >
                                   Obriši
                                 </button>
@@ -302,7 +303,7 @@ const AdminUsersPage = () => {
                 )}
 
                 {pendingTab === 'deleted' && (
-                  <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4">
+                  <div className="rounded-lg border border-gray-200 bg-white p-3 sm:p-4 min-h-0 h-full flex flex-col">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
                       <h2 className="font-semibold text-sm sm:text-lg text-gray-900">Obrisani korisnici</h2>
                       <span className="text-xs font-semibold uppercase tracking-wide text-gray-600">
@@ -312,7 +313,7 @@ const AdminUsersPage = () => {
                     {deletedUsers.length === 0 ? (
                       <p className="text-sm text-gray-500">Nema obrisanih korisnika.</p>
                     ) : (
-                      <div className="max-h-[260px] overflow-y-auto pr-1">
+                      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
                         <div className="space-y-2">
                           {deletedUsers.map((u) => (
                             <div key={u.id} className="flex flex-col gap-3 rounded border border-gray-200 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
@@ -321,11 +322,11 @@ const AdminUsersPage = () => {
                                 <div className="text-xs text-gray-500">{u.fullName || '—'}</div>
                                 <div className="text-xs text-gray-500">{u.phone || '—'}</div>
                               </div>
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                              <div className="flex flex-wrap items-center justify-center gap-2">
                                 <button
                                   onClick={() => restoreUser(u.id)}
                                   disabled={loading}
-                                  className="text-[10px] sm:text-[11px] px-2 py-1 rounded font-semibold bg-blue-600 text-white disabled:opacity-50 w-full sm:w-auto"
+                                  className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-blue-600 text-white disabled:opacity-50 transition duration-150"
                                 >
                                   Vrati profil
                                 </button>
@@ -337,6 +338,7 @@ const AdminUsersPage = () => {
                     )}
                   </div>
                 )}
+                </div>
               </div>
               
               {/* ZAGLAVLJE TABELE SA AKCIJAMA */}
@@ -345,18 +347,18 @@ const AdminUsersPage = () => {
                   <h2 className="font-semibold text-base sm:text-lg whitespace-nowrap">Postojeći korisnici</h2> 
                   
                   {/* Dugmad za Edit i Obriši */}
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2">
                       <button
                           onClick={startEditing}
                           disabled={!selectedUserId || editingId !== null || loading}
-                          className="text-[11px] sm:text-sm px-3 py-1 rounded font-semibold bg-[#1F50FF] text-white disabled:opacity-50 transition duration-150 w-full sm:w-auto"
+                          className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-[#1F50FF] text-white disabled:opacity-50 transition duration-150"
                       >
                           Izmeni
                       </button>
                       <button
                           onClick={() => openDelete(selectedUserId || undefined)}
                           disabled={!selectedUserId || loading}
-                          className="text-[11px] sm:text-sm px-3 py-1 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150 w-full sm:w-auto"
+                          className="text-xs sm:text-sm min-w-[104px] px-2 py-2 rounded font-semibold bg-red-600 text-white disabled:opacity-50 transition duration-150"
                       >
                           Obriši
                       </button>
@@ -364,9 +366,9 @@ const AdminUsersPage = () => {
               </div>
 
               {/* Tabela */}
-              <div className={`overflow-x-auto ${activeTab === 'pending' ? 'hidden sm:block' : ''}`}>
-                <div className="max-h-[240px] sm:max-h-[260px] overflow-y-auto">
-                  <table className="min-w-[320px] w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+              <div className={`flex-1 min-h-0 overflow-hidden ${activeTab === 'pending' ? 'hidden sm:block' : ''}`}>
+                <div className="h-full overflow-y-auto overflow-x-hidden">
+                  <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
                   <thead className="bg-gray-50 text-gray-600 uppercase tracking-wide text-xs">
                     <tr className="text-left border-b border-gray-200 divide-x divide-gray-200">
                         <th className="py-3 px-2 sm:px-3">Ime i prezime ili nadimak</th>
