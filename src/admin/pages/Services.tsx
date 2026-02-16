@@ -40,10 +40,8 @@ const AdminServicesPage = () => {
 
     updatePageHeight()
     window.addEventListener('resize', updatePageHeight)
-    window.addEventListener('scroll', updatePageHeight, true)
     return () => {
       window.removeEventListener('resize', updatePageHeight)
-      window.removeEventListener('scroll', updatePageHeight, true)
     }
   }, [])
 
