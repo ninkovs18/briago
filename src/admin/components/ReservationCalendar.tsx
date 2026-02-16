@@ -38,7 +38,6 @@ export type ReservationCalendarProps = {
 }
 
 const HOURS_LABEL_WIDTH = 36
-const DAY_MIN_WIDTH = 56
 const STEP_HEIGHT = 26
 
 export default function ReservationCalendar({
@@ -322,8 +321,7 @@ export default function ReservationCalendar({
       </div>
       <div
         ref={containerRef}
-        className="relative overflow-x-auto overflow-y-auto"
-        style={{ maxHeight: '78vh' }}
+        className="relative"
         onPointerUp={() => {
           if (!draggingRef.current) {
             dragStartRef.current = null
@@ -331,8 +329,8 @@ export default function ReservationCalendar({
         }}
       >
         <div
-          className="grid min-w-max"
-          style={{ gridTemplateColumns: `${HOURS_LABEL_WIDTH}px repeat(6, minmax(${DAY_MIN_WIDTH}px, 1fr))` }}
+          className="grid w-full"
+          style={{ gridTemplateColumns: `${HOURS_LABEL_WIDTH}px repeat(6, minmax(0, 1fr))` }}
         >
           <div />
           {days.map((d) => (
@@ -342,7 +340,7 @@ export default function ReservationCalendar({
             </div>
           ))}
 
-          <div className="relative border-t border-[#E7ECEA]" style={{ height: columnHeight }}>
+          <div className="relative border-t border-[#E7ECEA]" style={{ minHeight: columnHeight }}>
             {new Array(stepsPerDay + 1).fill(0).map((_, i) => {
               const totalMin = i * stepMinutes
               const hh = Math.floor(totalMin / 60) + minHour
@@ -359,8 +357,8 @@ export default function ReservationCalendar({
           {days.map((_, dayIdx) => (
             <div
               key={dayIdx}
-              className="relative border-l border-t border-[#E7ECEA]"
-              style={{ height: columnHeight }}
+              className="relative border-l border-t border-[#E7ECEA] bg-[#F8FBFA]"
+              style={{ minHeight: columnHeight }}
               onClick={(e) => handleColumnClick(e, dayIdx)}
             >
               {new Array(stepsPerDay).fill(0).map((_, i) => (
@@ -373,12 +371,20 @@ export default function ReservationCalendar({
                       ? 'bg-blue-100 ring-2 ring-blue-500'
                       : hoverSlot?.dayIdx === dayIdx && hoverSlot?.slotIdx === i
                         ? 'bg-blue-100'
-                        : 'bg-[#EEF3F2]'
+                        : 'bg-[#E5ECE9]'
                   }`}
                   style={{ top: i * STEP_HEIGHT + 2, height: STEP_HEIGHT - 4 }}
                 />
               ))}
               {dayEvents[dayIdx].map((ev) => renderEvent(ev, dayIdx))}
+            </div>
+          ))}
+
+          <div className="border-t border-[#E7ECEA]" />
+          {days.map((d) => (
+            <div key={`bottom-${d.toISOString()}`} className="px-0.5 py-1 text-center border-l border-t border-[#E7ECEA] transition">
+              <div className="uppercase text-[11px] sm:text-xs font-semibold text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
+              <div className="text-lg sm:text-xl font-bold text-[#111827] leading-tight">{format(d, 'd', { locale: srLatn })}</div>
             </div>
           ))}
         </div>
