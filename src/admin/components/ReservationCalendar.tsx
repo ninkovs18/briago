@@ -357,7 +357,7 @@ export default function ReservationCalendar({
           {days.map((_, dayIdx) => (
             <div
               key={dayIdx}
-              className="relative border-l border-t border-[#E7ECEA]"
+              className="relative border-l border-t border-[#E7ECEA] bg-[#F8FBFA]"
               style={{ minHeight: columnHeight }}
               onClick={(e) => handleColumnClick(e, dayIdx)}
             >
@@ -371,7 +371,7 @@ export default function ReservationCalendar({
                       ? 'bg-blue-100 ring-2 ring-blue-500'
                       : hoverSlot?.dayIdx === dayIdx && hoverSlot?.slotIdx === i
                         ? 'bg-blue-100'
-                        : 'bg-[#EEF3F2]'
+                        : 'bg-[#E5ECE9]'
                   }`}
                   style={{ top: i * STEP_HEIGHT + 2, height: STEP_HEIGHT - 4 }}
                 />
