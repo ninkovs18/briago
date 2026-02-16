@@ -638,7 +638,7 @@ const AdminReservationsPage = () => {
     ) : null;
 
   return (
-    <div className="p-2 sm:p-6 md:p-8 bg-gray-50 min-h-screen">
+    <div className="p-2 sm:p-6 md:p-8 bg-gray-50">
       <div className="-mx-2 sm:mx-0">
         <div className="bg-white rounded-none sm:rounded-lg border border-gray-100 shadow-lg p-0 sm:p-2">
           {loadingReservations && (
