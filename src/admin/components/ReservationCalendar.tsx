@@ -379,6 +379,14 @@ export default function ReservationCalendar({
               {dayEvents[dayIdx].map((ev) => renderEvent(ev, dayIdx))}
             </div>
           ))}
+
+          <div className="border-t border-[#E7ECEA]" />
+          {days.map((d) => (
+            <div key={`bottom-${d.toISOString()}`} className="px-0.5 py-1 text-center border-l border-t border-[#E7ECEA] transition">
+              <div className="uppercase text-[11px] sm:text-xs font-semibold text-gray-500">{format(d, 'EEE', { locale: srLatn })}</div>
+              <div className="text-lg sm:text-xl font-bold text-[#111827] leading-tight">{format(d, 'd', { locale: srLatn })}</div>
+            </div>
+          ))}
         </div>
       </div>
       {createPopover && popoverPosition && (
