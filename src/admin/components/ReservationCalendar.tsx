@@ -87,6 +87,12 @@ export default function ReservationCalendar({
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const autoScrollDoneRef = useRef(false)
+  const [isSmallViewport, setIsSmallViewport] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  )
+  const [isEditingPopoverField, setIsEditingPopoverField] = useState(false)
+  const [popoverContentLift, setPopoverContentLift] = useState(0)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
   const [popoverPosition, setPopoverPosition] = useState<{
@@ -187,11 +193,53 @@ export default function ReservationCalendar({
   }, [draggingId, handlePointerMove, handlePointerUp])
 
   useEffect(() => {
+    const onResize = () => setIsSmallViewport(window.innerWidth < 640)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    if (!createPopover) {
+      setIsEditingPopoverField(false)
+      setPopoverContentLift(0)
+      return
+    }
+
+    const syncEditingState = () => {
+      const popoverEl = popoverRef.current
+      const activeEl = document.activeElement as HTMLElement | null
+      const isEditing =
+        !!popoverEl &&
+        !!activeEl &&
+        popoverEl.contains(activeEl) &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          activeEl.isContentEditable)
+      setIsEditingPopoverField(isEditing)
+      if (!isEditing) {
+        setPopoverContentLift(0)
+      }
+    }
+
+    const handleFocusOut = () => window.setTimeout(syncEditingState, 0)
+    syncEditingState()
+    document.addEventListener('focusin', syncEditingState)
+    document.addEventListener('focusout', handleFocusOut)
+    return () => {
+      document.removeEventListener('focusin', syncEditingState)
+      document.removeEventListener('focusout', handleFocusOut)
+    }
+  }, [createPopover])
+
+  useEffect(() => {
     const updatePopoverPosition = () => {
       if (!createPopover || !selectedSlot) {
         setPopoverPosition(null)
         return
       }
+      if (isEditingPopoverField) return
       const slotEl = containerRef.current?.querySelector(
         `[data-day="${selectedSlot.dayIdx}"][data-slot="${selectedSlot.slotIdx}"]`
       ) as HTMLElement | null
@@ -220,21 +268,86 @@ export default function ReservationCalendar({
       window.removeEventListener('scroll', updatePopoverPosition, true)
       container?.removeEventListener('scroll', updatePopoverPosition)
     }
-  }, [createPopover, selectedSlot])
+  }, [createPopover, isEditingPopoverField, selectedSlot])
+
+  useEffect(() => {
+    if (!createPopover) {
+      autoScrollDoneRef.current = false
+      return
+    }
+  }, [createPopover])
 
   useEffect(() => {
     if (!createPopover || !popoverPosition) return
+    if (autoScrollDoneRef.current) return
     const raf = window.requestAnimationFrame(() => {
       const popoverEl = popoverRef.current
       if (!popoverEl) return
+      const activeEl = document.activeElement as HTMLElement | null
+      const isEditingFieldInsidePopover =
+        !!activeEl &&
+        popoverEl.contains(activeEl) &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          activeEl.isContentEditable)
+      if (isEditingFieldInsidePopover) return
       const rect = popoverEl.getBoundingClientRect()
-      const bottomOverflow = rect.bottom - (window.innerHeight - 8)
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+      const bottomOverflow = rect.bottom - (viewportHeight - 8)
       if (bottomOverflow > 0) {
+        autoScrollDoneRef.current = true
         window.scrollBy({ top: bottomOverflow + 12, behavior: 'auto' })
+        return
       }
+      autoScrollDoneRef.current = true
     })
     return () => window.cancelAnimationFrame(raf)
   }, [createPopover, popoverPosition])
+
+  useEffect(() => {
+    if (!createPopover || !popoverPosition || !isSmallViewport || !isEditingPopoverField) {
+      return
+    }
+
+    const updateLift = () => {
+      const popoverEl = popoverRef.current
+      const activeEl = document.activeElement as HTMLElement | null
+      if (!popoverEl || !activeEl || !popoverEl.contains(activeEl)) {
+        setPopoverContentLift(0)
+        return
+      }
+
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+      const safeBottom = viewportHeight - 12
+      const safeTop = (popoverEl.getBoundingClientRect().top || 0) + 8
+      const activeRect = activeEl.getBoundingClientRect()
+
+      let nextLift = 0
+      if (activeRect.bottom > safeBottom) {
+        nextLift = activeRect.bottom - safeBottom
+      }
+
+      const shiftedActiveTop = activeRect.top - nextLift
+      if (shiftedActiveTop < safeTop) {
+        nextLift = Math.max(0, nextLift - (safeTop - shiftedActiveTop))
+      }
+
+      setPopoverContentLift(Math.ceil(nextLift))
+    }
+
+    const raf = window.requestAnimationFrame(updateLift)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', updateLift)
+    vv?.addEventListener('scroll', updateLift)
+    window.addEventListener('resize', updateLift)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      vv?.removeEventListener('resize', updateLift)
+      vv?.removeEventListener('scroll', updateLift)
+      window.removeEventListener('resize', updateLift)
+    }
+  }, [createPopover, isEditingPopoverField, isSmallViewport, popoverPosition])
 
   const renderEvent = (ev: CalendarEvent, dayIdx: number) => {
     const columnTop = setHours(setMinutes(addDays(start, dayIdx), 0), minHour)
@@ -394,13 +507,27 @@ export default function ReservationCalendar({
           <div
             ref={popoverRef}
             className="absolute pointer-events-auto rounded-lg border-2 border-blue-300 bg-white p-3 shadow-lg"
-            style={{ top: popoverPosition.top, left: popoverPosition.left, width: popoverPosition.width }}
+            style={{
+              top: popoverPosition.top,
+              left: popoverPosition.left,
+              width: popoverPosition.width,
+              overflow: 'hidden'
+            }}
           >
             <div
               className="pointer-events-none absolute -top-[9px] h-4 w-4 rotate-45 border-l-2 border-t-2 border-blue-300 bg-white"
               style={{ left: popoverPosition.arrowLeft }}
             />
-            {createPopover}
+            <div
+              style={{
+                transform: popoverContentLift
+                  ? `translateY(-${popoverContentLift}px)`
+                  : undefined,
+                willChange: popoverContentLift ? 'transform' : undefined
+              }}
+            >
+              {createPopover}
+            </div>
           </div>
         </div>
       )}
