@@ -88,10 +88,10 @@ export default function ReservationCalendar({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const autoScrollDoneRef = useRef(false)
+  const bodyLockScrollYRef = useRef<number | null>(null)
   const [isSmallViewport, setIsSmallViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   )
-  const [isEditingPopoverField, setIsEditingPopoverField] = useState(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
   const [popoverPosition, setPopoverPosition] = useState<{
@@ -199,45 +199,11 @@ export default function ReservationCalendar({
   }, [])
 
   useEffect(() => {
-    if (!createPopover) {
-      setIsEditingPopoverField(false)
-      return
-    }
-
-    const syncEditingState = () => {
-      const popoverEl = popoverRef.current
-      const activeEl = document.activeElement as HTMLElement | null
-      const isEditing =
-        !!popoverEl &&
-        !!activeEl &&
-        popoverEl.contains(activeEl) &&
-        (activeEl.tagName === 'INPUT' ||
-          activeEl.tagName === 'TEXTAREA' ||
-          activeEl.tagName === 'SELECT' ||
-          activeEl.isContentEditable)
-      setIsEditingPopoverField(isEditing)
-    }
-
-    syncEditingState()
-    const handleFocusOut = () => {
-      // Delay so document.activeElement is updated after blur/focus transitions.
-      window.setTimeout(syncEditingState, 0)
-    }
-    document.addEventListener('focusin', syncEditingState)
-    document.addEventListener('focusout', handleFocusOut)
-    return () => {
-      document.removeEventListener('focusin', syncEditingState)
-      document.removeEventListener('focusout', handleFocusOut)
-    }
-  }, [createPopover])
-
-  useEffect(() => {
     const updatePopoverPosition = () => {
       if (!createPopover || !selectedSlot) {
         setPopoverPosition(null)
         return
       }
-      if (isEditingPopoverField) return
       const slotEl = containerRef.current?.querySelector(
         `[data-day="${selectedSlot.dayIdx}"][data-slot="${selectedSlot.slotIdx}"]`
       ) as HTMLElement | null
@@ -266,7 +232,7 @@ export default function ReservationCalendar({
       window.removeEventListener('scroll', updatePopoverPosition, true)
       container?.removeEventListener('scroll', updatePopoverPosition)
     }
-  }, [createPopover, isEditingPopoverField, selectedSlot])
+  }, [createPopover, selectedSlot])
 
   useEffect(() => {
     if (!createPopover) {
@@ -302,6 +268,47 @@ export default function ReservationCalendar({
     })
     return () => window.cancelAnimationFrame(raf)
   }, [createPopover, popoverPosition])
+
+  useEffect(() => {
+    if (!createPopover || !isSmallViewport) return
+
+    const body = document.body
+    const html = document.documentElement
+    const scrollY = window.scrollY
+    bodyLockScrollYRef.current = scrollY
+
+    const prevBody = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow
+    }
+    const prevHtmlOverscroll = html.style.overscrollBehavior
+
+    body.style.position = 'fixed'
+    body.style.top = `-${scrollY}px`
+    body.style.left = '0'
+    body.style.right = '0'
+    body.style.width = '100%'
+    body.style.overflow = 'hidden'
+    html.style.overscrollBehavior = 'none'
+
+    return () => {
+      body.style.position = prevBody.position
+      body.style.top = prevBody.top
+      body.style.left = prevBody.left
+      body.style.right = prevBody.right
+      body.style.width = prevBody.width
+      body.style.overflow = prevBody.overflow
+      html.style.overscrollBehavior = prevHtmlOverscroll
+
+      const restoreY = bodyLockScrollYRef.current ?? scrollY
+      bodyLockScrollYRef.current = null
+      window.scrollTo(0, restoreY)
+    }
+  }, [createPopover, isSmallViewport])
 
   const renderEvent = (ev: CalendarEvent, dayIdx: number) => {
     const columnTop = setHours(setMinutes(addDays(start, dayIdx), 0), minHour)
@@ -471,7 +478,7 @@ export default function ReservationCalendar({
           </div>
         </div>
       )}
-      {createPopover && !(isSmallViewport && isEditingPopoverField) && <div style={{ height: 520 }} />}
+      {createPopover && <div style={{ height: 520 }} />}
     </div>
   )
 }
