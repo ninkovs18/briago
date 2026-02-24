@@ -92,7 +92,7 @@ export default function ReservationCalendar({
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   )
   const [isEditingPopoverField, setIsEditingPopoverField] = useState(false)
-  const [popoverLift, setPopoverLift] = useState(0)
+  const [popoverContentLift, setPopoverContentLift] = useState(0)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
   const [popoverPosition, setPopoverPosition] = useState<{
@@ -202,7 +202,7 @@ export default function ReservationCalendar({
   useEffect(() => {
     if (!createPopover) {
       setIsEditingPopoverField(false)
-      setPopoverLift(0)
+      setPopoverContentLift(0)
       return
     }
 
@@ -219,7 +219,7 @@ export default function ReservationCalendar({
           activeEl.isContentEditable)
       setIsEditingPopoverField(isEditing)
       if (!isEditing) {
-        setPopoverLift(0)
+        setPopoverContentLift(0)
       }
     }
 
@@ -314,13 +314,13 @@ export default function ReservationCalendar({
       const popoverEl = popoverRef.current
       const activeEl = document.activeElement as HTMLElement | null
       if (!popoverEl || !activeEl || !popoverEl.contains(activeEl)) {
-        setPopoverLift(0)
+        setPopoverContentLift(0)
         return
       }
 
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight
       const safeBottom = viewportHeight - 12
-      const safeTop = 8
+      const safeTop = (popoverEl.getBoundingClientRect().top || 0) + 8
       const activeRect = activeEl.getBoundingClientRect()
 
       let nextLift = 0
@@ -328,13 +328,12 @@ export default function ReservationCalendar({
         nextLift = activeRect.bottom - safeBottom
       }
 
-      const shiftedTop = popoverEl.getBoundingClientRect().top - nextLift
-      if (shiftedTop < safeTop) {
-        nextLift = Math.max(0, nextLift - (safeTop - shiftedTop))
+      const shiftedActiveTop = activeRect.top - nextLift
+      if (shiftedActiveTop < safeTop) {
+        nextLift = Math.max(0, nextLift - (safeTop - shiftedActiveTop))
       }
 
-      setPopoverLift(Math.ceil(nextLift))
-      activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+      setPopoverContentLift(Math.ceil(nextLift))
     }
 
     const raf = window.requestAnimationFrame(updateLift)
@@ -512,19 +511,23 @@ export default function ReservationCalendar({
               top: popoverPosition.top,
               left: popoverPosition.left,
               width: popoverPosition.width,
-              transform: popoverLift ? `translateY(-${popoverLift}px)` : undefined,
-              maxHeight:
-                isSmallViewport && isEditingPopoverField
-                  ? `${Math.max(180, (window.visualViewport?.height ?? window.innerHeight) - 16)}px`
-                  : undefined,
-              overflowY: isSmallViewport && isEditingPopoverField ? 'auto' : undefined
+              overflow: 'hidden'
             }}
           >
             <div
               className="pointer-events-none absolute -top-[9px] h-4 w-4 rotate-45 border-l-2 border-t-2 border-blue-300 bg-white"
               style={{ left: popoverPosition.arrowLeft }}
             />
-            {createPopover}
+            <div
+              style={{
+                transform: popoverContentLift
+                  ? `translateY(-${popoverContentLift}px)`
+                  : undefined,
+                willChange: popoverContentLift ? 'transform' : undefined
+              }}
+            >
+              {createPopover}
+            </div>
           </div>
         </div>
       )}
