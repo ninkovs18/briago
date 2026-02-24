@@ -88,10 +88,11 @@ export default function ReservationCalendar({
   const containerRef = useRef<HTMLDivElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
   const autoScrollDoneRef = useRef(false)
-  const bodyLockScrollYRef = useRef<number | null>(null)
   const [isSmallViewport, setIsSmallViewport] = useState(() =>
     typeof window !== 'undefined' ? window.innerWidth < 640 : false
   )
+  const [isEditingPopoverField, setIsEditingPopoverField] = useState(false)
+  const [popoverLift, setPopoverLift] = useState(0)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
   const [popoverPosition, setPopoverPosition] = useState<{
@@ -199,11 +200,46 @@ export default function ReservationCalendar({
   }, [])
 
   useEffect(() => {
+    if (!createPopover) {
+      setIsEditingPopoverField(false)
+      setPopoverLift(0)
+      return
+    }
+
+    const syncEditingState = () => {
+      const popoverEl = popoverRef.current
+      const activeEl = document.activeElement as HTMLElement | null
+      const isEditing =
+        !!popoverEl &&
+        !!activeEl &&
+        popoverEl.contains(activeEl) &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          activeEl.isContentEditable)
+      setIsEditingPopoverField(isEditing)
+      if (!isEditing) {
+        setPopoverLift(0)
+      }
+    }
+
+    const handleFocusOut = () => window.setTimeout(syncEditingState, 0)
+    syncEditingState()
+    document.addEventListener('focusin', syncEditingState)
+    document.addEventListener('focusout', handleFocusOut)
+    return () => {
+      document.removeEventListener('focusin', syncEditingState)
+      document.removeEventListener('focusout', handleFocusOut)
+    }
+  }, [createPopover])
+
+  useEffect(() => {
     const updatePopoverPosition = () => {
       if (!createPopover || !selectedSlot) {
         setPopoverPosition(null)
         return
       }
+      if (isEditingPopoverField) return
       const slotEl = containerRef.current?.querySelector(
         `[data-day="${selectedSlot.dayIdx}"][data-slot="${selectedSlot.slotIdx}"]`
       ) as HTMLElement | null
@@ -232,7 +268,7 @@ export default function ReservationCalendar({
       window.removeEventListener('scroll', updatePopoverPosition, true)
       container?.removeEventListener('scroll', updatePopoverPosition)
     }
-  }, [createPopover, selectedSlot])
+  }, [createPopover, isEditingPopoverField, selectedSlot])
 
   useEffect(() => {
     if (!createPopover) {
@@ -270,45 +306,49 @@ export default function ReservationCalendar({
   }, [createPopover, popoverPosition])
 
   useEffect(() => {
-    if (!createPopover || !isSmallViewport) return
-
-    const body = document.body
-    const html = document.documentElement
-    const scrollY = window.scrollY
-    bodyLockScrollYRef.current = scrollY
-
-    const prevBody = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow
+    if (!createPopover || !popoverPosition || !isSmallViewport || !isEditingPopoverField) {
+      return
     }
-    const prevHtmlOverscroll = html.style.overscrollBehavior
 
-    body.style.position = 'fixed'
-    body.style.top = `-${scrollY}px`
-    body.style.left = '0'
-    body.style.right = '0'
-    body.style.width = '100%'
-    body.style.overflow = 'hidden'
-    html.style.overscrollBehavior = 'none'
+    const updateLift = () => {
+      const popoverEl = popoverRef.current
+      const activeEl = document.activeElement as HTMLElement | null
+      if (!popoverEl || !activeEl || !popoverEl.contains(activeEl)) {
+        setPopoverLift(0)
+        return
+      }
 
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+      const safeBottom = viewportHeight - 12
+      const safeTop = 8
+      const activeRect = activeEl.getBoundingClientRect()
+
+      let nextLift = 0
+      if (activeRect.bottom > safeBottom) {
+        nextLift = activeRect.bottom - safeBottom
+      }
+
+      const shiftedTop = popoverEl.getBoundingClientRect().top - nextLift
+      if (shiftedTop < safeTop) {
+        nextLift = Math.max(0, nextLift - (safeTop - shiftedTop))
+      }
+
+      setPopoverLift(Math.ceil(nextLift))
+      activeEl.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    }
+
+    const raf = window.requestAnimationFrame(updateLift)
+    const vv = window.visualViewport
+    vv?.addEventListener('resize', updateLift)
+    vv?.addEventListener('scroll', updateLift)
+    window.addEventListener('resize', updateLift)
     return () => {
-      body.style.position = prevBody.position
-      body.style.top = prevBody.top
-      body.style.left = prevBody.left
-      body.style.right = prevBody.right
-      body.style.width = prevBody.width
-      body.style.overflow = prevBody.overflow
-      html.style.overscrollBehavior = prevHtmlOverscroll
-
-      const restoreY = bodyLockScrollYRef.current ?? scrollY
-      bodyLockScrollYRef.current = null
-      window.scrollTo(0, restoreY)
+      window.cancelAnimationFrame(raf)
+      vv?.removeEventListener('resize', updateLift)
+      vv?.removeEventListener('scroll', updateLift)
+      window.removeEventListener('resize', updateLift)
     }
-  }, [createPopover, isSmallViewport])
+  }, [createPopover, isEditingPopoverField, isSmallViewport, popoverPosition])
 
   const renderEvent = (ev: CalendarEvent, dayIdx: number) => {
     const columnTop = setHours(setMinutes(addDays(start, dayIdx), 0), minHour)
@@ -468,7 +508,17 @@ export default function ReservationCalendar({
           <div
             ref={popoverRef}
             className="absolute pointer-events-auto rounded-lg border-2 border-blue-300 bg-white p-3 shadow-lg"
-            style={{ top: popoverPosition.top, left: popoverPosition.left, width: popoverPosition.width }}
+            style={{
+              top: popoverPosition.top,
+              left: popoverPosition.left,
+              width: popoverPosition.width,
+              transform: popoverLift ? `translateY(-${popoverLift}px)` : undefined,
+              maxHeight:
+                isSmallViewport && isEditingPopoverField
+                  ? `${Math.max(180, (window.visualViewport?.height ?? window.innerHeight) - 16)}px`
+                  : undefined,
+              overflowY: isSmallViewport && isEditingPopoverField ? 'auto' : undefined
+            }}
           >
             <div
               className="pointer-events-none absolute -top-[9px] h-4 w-4 rotate-45 border-l-2 border-t-2 border-blue-300 bg-white"
