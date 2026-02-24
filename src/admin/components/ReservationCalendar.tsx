@@ -87,6 +87,7 @@ export default function ReservationCalendar({
 
   const containerRef = useRef<HTMLDivElement | null>(null)
   const popoverRef = useRef<HTMLDivElement | null>(null)
+  const autoScrollDoneRef = useRef(false)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [hoverSlot, setHoverSlot] = useState<{ dayIdx: number; slotIdx: number } | null>(null)
   const [popoverPosition, setPopoverPosition] = useState<{
@@ -223,7 +224,15 @@ export default function ReservationCalendar({
   }, [createPopover, selectedSlot])
 
   useEffect(() => {
+    if (!createPopover) {
+      autoScrollDoneRef.current = false
+      return
+    }
+  }, [createPopover])
+
+  useEffect(() => {
     if (!createPopover || !popoverPosition) return
+    if (autoScrollDoneRef.current) return
     const raf = window.requestAnimationFrame(() => {
       const popoverEl = popoverRef.current
       if (!popoverEl) return
@@ -240,8 +249,11 @@ export default function ReservationCalendar({
       const viewportHeight = window.visualViewport?.height ?? window.innerHeight
       const bottomOverflow = rect.bottom - (viewportHeight - 8)
       if (bottomOverflow > 0) {
+        autoScrollDoneRef.current = true
         window.scrollBy({ top: bottomOverflow + 12, behavior: 'auto' })
+        return
       }
+      autoScrollDoneRef.current = true
     })
     return () => window.cancelAnimationFrame(raf)
   }, [createPopover, popoverPosition])
