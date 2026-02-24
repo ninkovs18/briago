@@ -227,8 +227,18 @@ export default function ReservationCalendar({
     const raf = window.requestAnimationFrame(() => {
       const popoverEl = popoverRef.current
       if (!popoverEl) return
+      const activeEl = document.activeElement as HTMLElement | null
+      const isEditingFieldInsidePopover =
+        !!activeEl &&
+        popoverEl.contains(activeEl) &&
+        (activeEl.tagName === 'INPUT' ||
+          activeEl.tagName === 'TEXTAREA' ||
+          activeEl.tagName === 'SELECT' ||
+          activeEl.isContentEditable)
+      if (isEditingFieldInsidePopover) return
       const rect = popoverEl.getBoundingClientRect()
-      const bottomOverflow = rect.bottom - (window.innerHeight - 8)
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+      const bottomOverflow = rect.bottom - (viewportHeight - 8)
       if (bottomOverflow > 0) {
         window.scrollBy({ top: bottomOverflow + 12, behavior: 'auto' })
       }
